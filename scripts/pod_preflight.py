@@ -99,8 +99,21 @@ def check_storage() -> None:
 
     target = hf_home or "/workspace"
     if not os.path.isdir(target):
-        check(f"{target} exists", False, "network volume not mounted?")
-        return
+        # huggingface_hub creates this dir lazily on first download, so an
+        # absent leaf directory just means "not downloaded yet", not "broken".
+        # What actually matters is that the parent (the mounted volume) exists
+        # and is writable.
+        parent = os.path.dirname(target.rstrip("/")) or "/"
+        if os.path.isdir(parent) and os.access(parent, os.W_OK):
+            try:
+                os.makedirs(target, exist_ok=True)
+                check(f"{target} created", True, "did not exist yet, created it")
+            except OSError as e:
+                check(f"{target} exists", False, f"could not create: {e}")
+                return
+        else:
+            check(f"{target} exists", False, f"parent {parent} missing/not writable - network volume not mounted?")
+            return
 
     usage = shutil.disk_usage(target)
     free_gb = usage.free / 1024**3
