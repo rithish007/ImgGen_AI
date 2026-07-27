@@ -1,4 +1,4 @@
-# AI-Pipeline Smoke Test — Technical Build Plan (v5)
+# AI-Pipeline Smoke Test — Technical Build Plan (v6)
 
 **Purpose:** validate an all-AI alternative to the UE5.8 pipeline (generation -> annotation -> DR -> YOLO26) on a small pilot batch before committing to full-scale dataset generation. This is a pipeline-mechanics check, not a scientific result — sample size is deliberately tiny at this stage.
 
@@ -9,6 +9,11 @@
 ---
 
 ## Changelog
+
+**v5 -> v6**
+1. **Jerlov coefficients sourced.** Confirmed there is no universal, camera-independent Jerlov coefficient table — Akkaynak et al. (CVPR 2017) show the RGB-domain ratios depend on camera spectral response, imaging range, and reflectance (their Eq. 9); both that paper and Berman et al. (BMVC 2017) present the per-type ratios only as scatter plots, never a printed table. Adopted the `'peak'`-branch values from `danaberman/underwater-hl`'s `get_water_types.m` (cited, code-shipped, camera-agnostic evaluation) for 1C/3C/5C, with one flagged, user-confirmed inference resolving an 8-vs-10 mismatch between that file's coefficient arrays and its named type list. See `src/jerlov.py`.
+2. **Pod deployed and verified.** RTX 5090, sm_120, all five gated HF repos accessible, all pipeline classes import clean — see `scripts/pod_preflight.py`.
+3. Fixed a preflight false-failure on the not-yet-created `HF_HOME` cache directory (`huggingface_hub` creates it lazily on first download).
 
 **v4 -> v5**
 1. **Depth model corrected.** v4 conflated vertical depth with camera-to-object range and capped range at 5m. These are separate variables in the Akkaynak-Treibitz model and control different effects. Stage 3 rewritten — see Stage 3b.
@@ -289,7 +294,19 @@ Deterministic Python script. Per image, sample:
 - **Range map** `z(x,y)` from 3a
 - `β_c^D` and `β_c^B` from the Jerlov type's IOPs
 
-Populate the coefficient table from **Solonenko & Mobley (2015), "Inherent optical properties of Jerlov water types", Applied Optics 54(17):5392-5401, doi:10.1364/AO.54.005392** — it tabulates a(λ) and b(λ) for every Jerlov type, including 1C/3C/5C. Integrate against RGB camera response to get per-channel coefficients. **Do not invent these values**; they are the one place in the pipeline where a guess silently invalidates the output.
+**Coefficient source — resolved.** There is no universal, camera-independent Jerlov coefficient table. Akkaynak et al. (CVPR 2017, "What Is the Space of Attenuation Coefficients in Underwater Computer Vision?") show the RGB-domain ratios (β_B/β_R, β_B/β_G) depend on camera spectral response, imaging range, and scene reflectance (their Eq. 9) — they are a projection at one operating point, not a fixed physical constant. Solonenko & Mobley (2015) is paywalled; both that CVPR17 paper and Berman et al. (BMVC 2017, "Diving into Haze-Lines") present the per-type ratios only as scatter plots (their Fig. 3a / Fig. 2-middle), never a printed table.
+
+`src/jerlov.py` adopts the `'peak'`-branch values from **`danaberman/underwater-hl`'s `get_water_types.m`** (BMVC 2017, cited by dozens of follow-on underwater-vision papers), which evaluates exactly this projection at a camera-agnostic peak-sensitivity approximation (475/525/600nm for B/G/R):
+
+| Type | β_B/β_G | β_B/β_R |
+|---|---|---|
+| 1C | 0.7937 | 0.2773 |
+| 3C | 0.9539 | 0.4051 |
+| 5C | 1.0930 | 0.4642 |
+
+**One flagged inference, confirmed with the user before use:** the source file's `water_types` list names 10 Jerlov types (I, IA, IB, II, III, 1C, 3C, 5C, 7C, 9C — this ordering is independently confirmed by Fig. 3a's legend in the CVPR17 paper), but its `'peak'` coefficient arrays hold only 8 values with no comment on which two are omitted. We read the array as I, II, III, 1C, 3C, 5C, 7C, 9C (dropping the closely-spaced oceanic IA/IB) — the values increase monotonically with turbidity as physically expected, which is consistent with but does not prove this reading.
+
+These are ratios only; `beta_rgb()` in `src/jerlov.py` derives absolute per-channel β from a sampled `β_B` — the ratios do not pin an absolute scale, and neither Berman's method nor ours needs one until this stage.
 
 Outputs:
 - DR'd copy of each image, **label file unchanged** (pixel-only transform)
