@@ -1,0 +1,39 @@
+# Virtual environment — never commit, pod rebuilds from requirements.txt
+ImgGenEnv/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Model weights & HF cache — live on the RunPod network volume, not in git
+*.safetensors
+*.ckpt
+*.pth
+*.bin
+*.gguf
+.cache/
+hf_cache/
+
+# Pipeline outputs — pulled back selectively, not version-controlled wholesale
+outputs/
+runs/
+dataset/
+*.png
+*.jpg
+*.jpeg
+*.npy
+
+# Keep manifests, configs and reports (they are the reproducibility record)
+!manifests/*.json
+!configs/*.json
+!reports/*.json
+!reports/*.md
+
+# Secrets
+.env
+*.pem
+*_token

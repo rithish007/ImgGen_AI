@@ -1,0 +1,26 @@
+# Pod environment for the AI-pipeline smoke test.
+# Install torch FIRST from the CUDA index, then the rest:
+#
+#   pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu132
+#   pip install -r requirements.txt
+#
+# CUDA 12.8+ is required for Blackwell (RTX 5090). Pick a RunPod PyTorch
+# template on cu128 or newer; the local venv is on cu132.
+
+# --- core (versions match the verified local env) ---
+diffusers==0.39.0
+transformers==5.14.1
+huggingface_hub==1.25.1
+safetensors==0.8.0
+tokenizers==0.22.2
+numpy==2.4.4
+pillow==12.2.0
+
+# --- required on the pod, not yet installed locally ---
+# accelerate: needed by enable_model_cpu_offload() (Klein base is ~29GB on a 32GB card)
+accelerate>=1.14.0
+# scipy + opencv: Stage 3b physics transform
+scipy>=1.18.0
+opencv-python-headless>=5.0.0
+# ultralytics: Stage 4 dataset assembly / Stage 5
+ultralytics>=8.4.108
