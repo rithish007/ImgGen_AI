@@ -32,9 +32,11 @@ from __future__ import annotations
 # touching or overlapping - the opposite of "spaced apart". Applying one
 # spacing rule to all four classes was the bug; arrangement is now per-class.
 ARRANGEMENTS: dict[int, str] = {
-    0: (  # starfish: solitary, roams open sediment - matches the approved v8 result
-        "individuals of varying sizes and orientations, scattered across the open "
-        "sediment some distance apart from each other, unevenly spaced"
+    0: (  # starfish: solitary, camouflaged against rock/algae (v10 - was "open
+          # sediment", which fought against the CLASSES entry's "blending into
+          # rock and algae" and pulled the substrate back toward open sand)
+        "individuals of varying sizes and orientations, scattered among rocks and "
+        "patches of algae some distance apart from each other, unevenly spaced"
     ),
     1: (  # sea urchin: aggregates in crevices and rock faces - matches DUO reference photos
         "clustered tightly together in a rocky crevice or wedged against a rock "
@@ -88,8 +90,16 @@ CLASSES: dict[int, dict[str, str]] = {
     0: {
         "duo_label": "starfish",
         "short": "starfish",
-        "singular": "a five-armed starfish lying flat against the sediment, mottled brown and grey",
-        "plural": "{n} five-armed starfish, mottled brown and grey, {arrangement}",
+        # v9 rendered starfish large, crisp and centered on open light sand -
+        # visually a "hero shot", clearly the dominant subject. A real DUO
+        # reference photo (user-supplied) shows starfish as small, low-contrast,
+        # camouflaged blobs blending into rock and algae - easy for even a human
+        # annotator to miss. That's not a colour-cast difference (Stage 3's job),
+        # it's a Stage 1 framing/substrate choice: making the subject always
+        # large, sharp and prominent teaches Stage 2 annotation an easier task
+        # than the real detector will face on real footage.
+        "singular": "a small five-armed starfish, mottled brown and grey blending into the surrounding rock and algae, camouflaged and easy to overlook, resting flat against the substrate",
+        "plural": "{n} small five-armed starfish, mottled brown and grey blending into the surrounding rock and algae, camouflaged and easy to overlook, resting flat against the substrate, {arrangement}",
     },
     1: {
         "duo_label": "echinus",
