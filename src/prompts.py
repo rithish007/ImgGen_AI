@@ -94,8 +94,10 @@ CLASSES: dict[int, dict[str, str]] = {
     1: {
         "duo_label": "echinus",
         "short": "sea urchin",
-        "singular": "a dark purple-black sea urchin, a round test covered in short dense spines, sitting on the bottom",
-        "plural": "{n} dark purple-black sea urchins, round tests covered in short dense spines, {arrangement}",
+        # v9's "round test" rendered as ball-shaped/spherical. User feedback:
+        # too round, needs a flattened dome shape, and darker colour.
+        "singular": "a very dark, almost black sea urchin, a flattened dome-shaped test low and wide rather than spherical, covered in short dense spines, sitting on the bottom",
+        "plural": "{n} very dark, almost black sea urchins, flattened dome-shaped tests low and wide rather than spherical, covered in short dense spines, {arrangement}",
     },
     2: {
         "duo_label": "holothurian",
