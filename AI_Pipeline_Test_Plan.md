@@ -1,4 +1,4 @@
-# AI-Pipeline Smoke Test — Technical Build Plan (v7)
+# AI-Pipeline Smoke Test — Technical Build Plan (v8)
 
 **Purpose:** validate an all-AI alternative to the UE5.8 pipeline (generation -> annotation -> DR -> YOLO26) on a small pilot batch before committing to full-scale dataset generation. This is a pipeline-mechanics check, not a scientific result — sample size is deliberately tiny at this stage.
 
@@ -9,6 +9,17 @@
 ---
 
 ## Changelog
+
+**v7 -> v8** (n=20 pilot: Stage 2 finalized, Stage 3 built end-to-end)
+1. **Pilot extended from 11 to 20 images.** Rows 12-20 repeat the same 7-combination coverage at "dense" density / "wide" framing (new since v7) - see `src/build_manifest.py`. Rows 1-11 verified byte-identical to the original 11-row manifest, so nothing already generated needed redoing.
+2. **Grounding DINO dropped; SAM3 is the sole annotation engine.** Measured on all 20 images: starfish and sea urchin were close enough to call either way, but SAM3 found 70 scallop instances across 17/20 images vs. GDINO's 4 across 3/20 - that gap alone made GDINO unusable. `src/annotate.py` now runs SAM3 only; GDINO's pilot outputs are kept as historical record, not deleted. See Checkpoint 2.5.
+3. **Two image-gen alternatives smoke-tested against klein's instance-count overshoot, neither adopted.** qwenimage (20B, Apache 2.0) undershot the same count and additionally rendered an out-of-distribution robot/rover in frame - dropped, weights deleted. flux2dev (32B) was never tested - its offload requirements don't fit this pod's real container RAM cap (~58GB via `/sys/fs/cgroup/memory.max`, not the much larger host total `free -h` reports) and that same offload path already crashed the pod once. Kept as a future candidate. Klein remains the sole generation model. See Stage 1.
+4. **Stage 3 built end-to-end: range estimation (3a) and the physics transform (3b).** DA-V2 Large chosen over Apple Depth Pro after a head-to-head (`src/depth_compare.py`) - roughly tied on fine detail, but DA-V2's disparity representation gives more usable dynamic range in the near-field where the target classes live, and it's 2-10x faster. A training-free guided-filter refinement (`src/depth_utils.py`) is applied on top - not fine-tuning, since no ground-truth depth exists for 2D-diffusion-generated scenes to fine-tune against.
+5. **A real bug caught in range estimation:** reciprocal-inverting DA-V2's already-reciprocal disparity output re-compressed the near field, the opposite of the intended fix. Caught by inspecting the actual output distribution (75th percentile landing 0.03m above `z_near`), fixed to a linear flip. See `src/range_estimate.py`.
+6. **Jerlov's veiling light `B_c^∞(d)` resolved as a flagged simplification, not a sourced table.** No usable `K_d(λ)` table for the coastal types was found - the closest candidate (Williamson & Hollins 2023, full PDF read) turned out to study Jerlov type-classification drift with depth, not attenuation magnitude, and only covers types I-1C. Reuses the existing beam-attenuation ratios for spectral shape, anchored to one real citation for absolute green-channel magnitude. See Stage 3b.
+7. **Stage 3b's parameters recalibrated twice against real output**, not just derived from theory: first pass was "way too extreme" (β_b sampled independent of each image's own `z_far`, so wide shots blacked out); second pass over-corrected to "too similar to the original" (one fixed visibility floor made every image mildly hazy). Fixed by coupling β_b's cap to each image's own `z_far` and sampling the visibility floor itself per image, so the DR set spans mild to notably dark/murky. See Stage 3b.
+8. **Three camera-level effects added** (vignette, motion blur, signal-dependent sensor noise) - Jerlov/Akkaynak-Treibitz covers turbidity/haze/backscatter and depth-dependent lighting, nothing about the camera itself. All pure numpy/opencv, no model weights. See Stage 3b.
+9. **Box-alignment verified, and explicitly distinguished from detectability.** The DR transform is pixel-only by construction, so label alignment is guaranteed, not really "tested." Detectability is separate and was quantified (`src/dr_detection_check.py`): 0% misclassification, but scallop - already this pipeline's weakest class - loses ~36% of instances to the haze. DR'd images always ship with their original clean-image labels, never a re-detection on the degraded copy. See Checkpoint 3.
 
 **v6 -> v7**
 1. **SD3.5 dropped; Klein is the sole generation model.** Smoke-test comparison on identical prompts: SD3.5 rendered sea urchin spines as short blunt bumps (a real anatomical defect, not a style difference) and shot every class as an isolated macro product photo, ignoring the wide-angle survey-camera framing the whole pipeline depends on. Klein respected that framing; SD3.5 didn't, consistently, across all four smoke-test classes.
@@ -56,7 +67,7 @@ Freeze `requirements.txt` and commit it — the pod builds from this file, not f
 **Class availability** — verified present in the local env:
 `Flux2KleinPipeline`, `StableDiffusion3Pipeline` (diffusers 0.39.0); `Sam3Model`, `Sam3Processor`, `GroundingDinoForObjectDetection`, `DepthAnythingForDepthEstimation` (transformers 5.14.1).
 
-**Hugging Face.** Confirm license acceptance for **all five**, in particular `black-forest-labs/FLUX.2-klein-base-9B` — a FLUX.2-dev acceptance does **not** carry over to klein. Export `HF_TOKEN` on the pod. Set `HF_HOME` to the network volume so weights survive pod termination:
+**Hugging Face.** Confirm license acceptance for every gated repo listed in `scripts/pod_preflight.py`'s `MODEL_REPOS` (grows as models are added/removed - run the preflight script rather than trusting a hardcoded count here), in particular `black-forest-labs/FLUX.2-klein-base-9B` — a FLUX.2-dev acceptance does **not** carry over to klein. Export `HF_TOKEN` on the pod. Set `HF_HOME` to the network volume so weights survive pod termination:
 
 ```bash
 export HF_HOME=/workspace/hf_cache
@@ -71,41 +82,28 @@ git remote set-url origin git@github.com:rithish007/ImgGen_AI.git
 
 then connect with `ssh -A root@<pod-ip> -p <port> -i ~/.ssh/id_ed25519`.
 
-### Deploy runbook — when to click DEPLOY
+### Deploy runbook — historical (first deployment only)
 
-**Do not deploy yet.** The pod bills from the moment it starts, so all code should be written, committed and pushed first. Order:
+The steps below are what first stood the pod up. **For every session since, `POD_RUNBOOK.md` is the authoritative reference** (exact copy-paste commands, what does/doesn't persist across a stop) - this section is kept for how the pod and volume were originally provisioned, not as a per-session guide.
 
 1. Scripts written locally, `requirements.txt` frozen, everything pushed to `main`
 2. RunPod -> Settings -> SSH Public Keys -> paste the `id_ed25519.pub` key
-3. Create the network volume **first** (Storage -> Network Volume, ~150GB, note the datacenter)
-4. **Then click DEPLOY** — Secure Cloud, RTX 5090, in the volume's datacenter, PyTorch template on **CUDA 12.8 or newer** (Blackwell requires it), container disk 50GB, volume mounted at `/workspace`
-5. SSH in, `git clone`, `pip install -r requirements.txt`, export `HF_HOME`/`HF_TOKEN`
+3. Create the network volume **first** (Storage -> Network Volume, note the datacenter) - grown from an initial ~150GB to 200GB as more candidate models (flux2dev, qwenimage before it was dropped, Depth Pro) were added to the comparison work
+4. **Then click DEPLOY** — Secure Cloud, in the volume's datacenter, PyTorch template on **CUDA 12.8 or newer**, volume mounted at `/workspace`. GPU has varied by availability across sessions (RTX 5090 32GB, RTX 6000 Ada 48GB) - the pipeline is GPU-model-agnostic as long as `scripts/pod_preflight.py`'s VRAM/sm-arch checks pass.
+5. SSH in, `git clone`, `pip install -r requirements.txt` (**note:** on at least one session `pip install --target=...` pulled in a mismatched torch as a transitive dependency and broke torchaudio; a plain `pip install -r requirements.txt --break-system-packages` was the working fallback - see `POD_RUNBOOK.md`), export `HF_HOME`/`HF_TOKEN`
 6. Run Stage 0.5 first — 4 images/model, ~10 min. If output is unusable, stop and re-prompt before burning hours on the full manifest.
-
-Sizing note: ~50GB of weights (klein-base ~18GB, SD3.5-L + T5 ~26GB, SAM3 ~3GB, GDINO ~1GB, DA-V2 ~1.5GB) plus cache overhead and outputs. 150GB is comfortable.
 
 ---
 
-### Scripts (written, dry-run verified locally)
+### Scripts
 
-| File | Purpose |
-|---|---|
-| `src/prompts.py` | Class table, scene descriptor, prompt assembly, negative-prompt handling |
-| `src/build_manifest.py` | Builds `manifests/pilot.json` (20 rows) and `manifests/smoke.json` (4 rows) |
-| `src/generate.py` | Runs one manifest through one model; `--dry-run` prints prompts with no GPU |
-
-Verified locally without a GPU:
-- Image-level class balance is exact — 10 images per class across the 20 rows
-- Instance-level balance lands at 23 / 24 / 19 / 22 (starfish / urchin / cucumber / scallop), i.e. within ~13% of the ~22 expected by symmetry
-- The `all four classes @ sparse` row (row 20) is infeasible as specified — 4 classes cannot fit a 2-3 instance budget. `allocate_counts` applies a floor of one instance per class and flags the row with `density_floor_applied`, rather than silently dropping a class
-
-**Iterate prompts with `--dry-run` before deploying.** It loads no model and needs no GPU, so prompt wording costs nothing to refine while the pod is off.
+`src/` now holds more scripts than fit a table worth hand-maintaining (prompt/manifest generation, per-model image generation, SAM3 annotation, depth estimation, the domain-randomization transform, several comparison/diagnostic tools) - each has a module docstring with its own usage examples; that's the source of truth, not a table here. `python <script>.py --dry-run` (where supported) or `--help` costs nothing and needs no GPU.
 
 ---
 
 ## Stage 0.5 — Generator smoke test (NEW, do this first)
 
-Before building the 20-row manifest, generate **4 images per model** — one per class, single-class, sparse, close-up — using the Stage 1 prompt template. ~10 minutes of GPU total.
+Before building the full pilot manifest, generate **4 images per model** — one per class, single-class, sparse, close-up — using the Stage 1 prompt template. ~10 minutes of GPU total.
 
 Gate: is the object recognizable, on a seabed, in clear neutral water, photographic rather than illustrated? If a model fails here it will fail 20 times over, and no amount of downstream work recovers it.
 
@@ -125,7 +123,17 @@ Use the **base** klein variant, not the step-distilled `FLUX.2-klein-9B`. Distil
 
 Native 1024×1024; resize/crop to 640×640 happens at Stage 4, not here.
 
-**Pilot batch:** 11 images (see the reworked 3-class manifest below)
+**Pilot batch:** 11 images (see the reworked 3-class manifest below), extended to 20 at the n=20 checkpoint (rows 12-20: same 7-combination coverage at "dense" density / "wide" framing, see `src/build_manifest.py`).
+
+**Instance-count overshoot, and a model comparison that didn't resolve it.** `pilot_012` (klein, dense, wide, requested 7 starfish) rendered roughly 9-10 — a real, visible count-compliance gap, not just an annotation-recall gap. `src/generate.py` was extended with two candidates to smoke-test against the same row (same seed, same prompt):
+
+| Model | Params | Result on pilot_012 (7 requested) | Notes |
+|---|---|---|---|
+| klein (current) | 9B | ~9-10 starfish | overshoot |
+| qwenimage | 20B, Apache 2.0 | ~5 starfish | undershoot, **and rendered a visible robot/rover in frame** - an out-of-distribution object this pipeline doesn't want, not present in any klein output. **Dropped** after this result; weights deleted from the pod, `--model qwenimage` removed from `src/generate.py`. |
+| flux2dev | 32B + 24B text encoder | not tested | needs both fp8-quantized components in CPU RAM simultaneously under `enable_model_cpu_offload()`, which doesn't fit this pod's actual container RAM cap (~58GB, not the 503GB the host reports - see `/sys/fs/cgroup/memory.max`). Already crashed the pod once via a similar offload path on qwenimage's first (pre-quantization) attempt. **Kept as a future candidate** (`--model flux2dev` still in `src/generate.py`) - retry on a pod with more system RAM.
+
+**Conclusion: klein stays the pilot model, qwenimage dropped, flux2dev deferred.** qwenimage traded one count error direction for another and added a new artifact - worse than klein's problem, not better. The count-overshoot itself is left as a documented Stage 1 limitation, same treatment as the scallop count-overshoot problem noted below; fixing it properly likely needs layout-conditioned generation (bounding-box conditioning, GLIGEN-style, or compositing), not just a bigger base model - that's a larger change than a model swap and is out of scope here.
 
 ### Class vocabulary — 3 classes, DUO-derived (not DUO-exact)
 
@@ -196,9 +204,9 @@ Review all 11 (small enough at this scale):
 
 ---
 
-## Stage 2 — Auto-annotation (SAM 3 vs Grounding DINO)
+## Stage 2 — Auto-annotation (SAM3 only - see resolution below; originally SAM3 vs Grounding DINO)
 
-- **SAM 3** and **Grounding DINO**, same 11 images, two independent passes
+- **SAM 3**, one independent pass per class (originally run alongside Grounding DINO for comparison - see "Resolved at n=20 pilot" below for why GDINO was dropped)
 - **Text prompts:** `detector_prompts()` from `src/prompts.py` — `starfish`, `sea urchin`, `scallop`. Not the Stage 1 scene sentences, and never `echinus` (sea cucumber/holothurian is gone entirely, see v7 changelog).
 - **Output:** YOLO `.txt` from boxes (mask-to-box for SAM3), using this pipeline's own `class_id` (0=starfish, 1=sea urchin/echinus, 2=scallop — **not** DUO's numbering, see Stage 1) regardless of which prompt triggered the detection
 - Annotate the **clean** Stage 1 image. Stage 3 is pixel-only, so the same label file is valid for the DR'd copy.
@@ -234,6 +242,16 @@ Most manifest rows contain only a subset of the three classes, so we constantly 
 - SAM3 vs GDINO **per class**, not just overall — pick the stronger engine, or a per-class hybrid if there is a clear split
 - Expect scallop to be weakest (low contrast against substrate, partial burial, and the persistent count-overshoot problem noted in Stage 1).
 - Cross-check against Checkpoint 1.5: a low instance count means either the generator did not draw them or the detector did not find them. Distinguish these — they have opposite fixes.
+
+**Resolved at n=20 pilot: SAM3 only, GDINO dropped.** Measured on all 20 klein
+images (`reports/class_counts.json`): starfish 44 vs 41 instances (12/20 vs
+12/20 images) and sea urchin 48 vs 29 (12/20 vs 15/20) were close enough to
+call either way, but scallop was not — SAM3 found 70 instances across 17/20
+images, GDINO found 4 across 3/20. That gap alone makes GDINO unusable for
+this pipeline; no per-class hybrid was worth the added complexity. `src/annotate.py`
+now runs SAM3 only. GDINO's Stage 2 outputs from the pilot
+(`outputs/1-pilot/labels/gdino/`, `outputs/1-pilot/viz/gdino/`) are kept as
+the historical record, not deleted.
 
 ---
 
@@ -271,6 +289,14 @@ Depth Anything V2 on each **clean** Stage 1 image -> relative inverse depth.
 
 The v4 clean-generation decision also substantially reduces the domain gap: DA-V2 now runs on a bright, high-contrast, clear-water image rather than a murky one. If it still underperforms at Checkpoint 3, the fallback is Depth Pro, not a hand-rolled gradient prior.
 
+**Resolved: DA-V2 Large chosen over Apple Depth Pro, plus a free guided-filter refinement.** `src/depth_compare.py` ran both models head to head on 3 pilot images (`outputs/depth_compare/`):
+
+- **First pass** (`comparison.png`, whole-image, globally normalized) made Depth Pro look worse — its near-field region (where the target classes live) appeared to collapse to flat black. That turned out to be a normalization artifact, not a real gap: Depth Pro outputs metric depth (far = high value) while DA-V2 outputs inverse depth/disparity (near = high value), and Depth Pro's raw range is dominated by the distant background, so global percentile normalization crushed its near-field detail into a sliver of the display range.
+- **Fair pass** (`detail_comparison.png`, cropped to the near-field region, normalized locally, plus Sobel edge maps) told a more honest story: Depth Pro genuinely resolves more fine-grained surface texture (individual gravel/pebble relief) than DA-V2, which is smoother at that scale — consistent with Depth Pro's own paper. But on the boundary that actually matters here — the target-object silhouettes (starfish/urchin/scallop) — both models produce comparably clean, closed contours. Depth Pro's extra detail is mostly ambient substrate texture, not sharper object edges specifically.
+- **Guided-filter check** (`fine_tuned_comparison.png`): tested whether a training-free edge-aware filter (He/Sun/Tang 2010 guided filter, RGB luminance as guide, pure numpy/scipy, no model weights) could sharpen the "blobby" object boundaries either model produces. It helps modestly — edges snap a little tighter to the RGB guide — but doesn't turn blobby depth into segmentation-crisp depth. That's judged to be the honest ceiling of a training-free approach; true precision would need fine-tuning against real ground-truth depth, which we don't have for 2D-diffusion-generated scenes (see the "fine-tuning" question below).
+- **Decision:** DA-V2 Large, with the guided filter applied as a cheap refinement step. Reasons beyond the roughly-tied detail comparison: DA-V2 is 2-10x faster (0.07-0.36s vs Depth Pro's 0.77-0.85s/image), matches this pipeline's explicit relative-ordering-only requirement (Depth Pro's metric output is a capability we don't need and can't validate for a synthetic scene anyway), and gave equally clean target-object contours.
+- **Why not fine-tune a depth model for sharper boundaries instead?** Considered and set aside for now: fine-tuning needs ground-truth depth to train against, which doesn't exist for images produced by a 2D diffusion model (unlike a 3D-rendered scene). It would also be solving a problem that may not need solving — some of the "blobbiness" reflects real geometry (a starfish resting flush on a rock has a small true height difference, so smooth depth there isn't necessarily wrong), and Stage 3a's range map is explicitly a randomization driver, not ground truth (see the standing caveat below) - precision beyond what Stage 3b actually consumes would be effort spent on a metric nothing downstream uses.
+
 Standing caveat: this is an *estimated* range map of a *generated* scene. It is a plausible randomization driver, not ground truth, and nothing downstream should treat it as measured.
 
 ### 3b — Physics transform
@@ -296,17 +322,66 @@ Deterministic Python script. Per image, sample:
 
 These are ratios only; `beta_rgb()` in `src/jerlov.py` derives absolute per-channel β from a sampled `β_B` — the ratios do not pin an absolute scale, and neither Berman's method nor ours needs one until this stage.
 
+**β^D vs β^B — simplified to equal.** The revised model treats direct-signal and backscatter attenuation as physically distinct coefficients. This pipeline has only one attenuation-ratio table, not two, so `domain_randomize.py` uses `beta_rgb()`'s output for both (`β_c^D = β_c^B`). Flagged, not silently assumed.
+
+**`B_c^∞(d)` — veiling light, resolved as a flagged simplification after a sourcing attempt that came up short.** `B_c^∞` needs the per-channel ambient/backscatter colour as a function of vertical depth `d`, normally read off a Jerlov depth-irradiance chart (`K_d(λ)` per water type). Two sources were checked directly before falling back to a simplification:
+
+- **Williamson & Hollins 2023** ("Depth profiles of Jerlov water types," *Limnol. Oceanogr. Lett.* 8:781–788) — user provided the PDF, read in full. Turned out to study whether a water column's Jerlov *type classification* drifts with depth, not `K_d` magnitude by wavelength. Its own Table 3 (reconstructed from Jerlov 1976 fig. 71) stops at type "1C" — no 3C/5C data exists there either; the actual `K_d(λ)` numbers live in a supplementary figshare dataset the PDF references but doesn't contain.
+- One genuinely useful thing from that paper: its finest depth resolution near the surface is a single **0–10m bucket**. This pilot's entire `d` range (0–5m) sits inside that one bucket — there is no published evidence of resolvable optical change within 0–5m specifically, so treating a chosen water type's attenuation as constant across the full `d` range (rather than deriving a within-band depth curve) isn't cutting a corner the literature would otherwise resolve.
+- **Solonenko & Mobley 2015** ("Inherent optical properties of Jerlov water types," *Appl. Opt.* 54(17):5392–5401) is the primary IOP source this whole ratio table already wanted (see above) and would likely resolve this properly if it becomes available — not yet obtained.
+
+**Simplification used** (`kd_rgb()` in `src/jerlov.py`, two stacked flagged assumptions):
+1. `K_d`'s per-channel spectral **shape** reuses the same `β_B/β_G`, `β_B/β_R` ratios as beam attenuation above — diffuse and beam attenuation are physically different quantities; this treats them as sharing the same relative R/G/B shape per water type. Plausible, not verified.
+2. `K_d`'s absolute green-channel **magnitude** is anchored to one real citation found during research — a secondary source stating a `K_d` of 0.2763 m⁻¹ is compatible with Jerlov coastal types 3C–5C at 500–550nm — applied **uniformly across 1C/3C/5C**. This does not differentiate absolute `K_d` magnitude between the three coastal types (only their R/G/B shape, via the ratios), which is a real loss of information Jerlov's type ordering implies (1C should genuinely attenuate less than 5C).
+
+Then: `B_c^∞(d) = b_ref · exp(−K_{d,c} · d)`, with `b_ref ~ U(0.7, 1.0)` a per-image sampled achromatic baseline (the veiling light's colour comes entirely from the per-channel `K_d` exponential, not from `b_ref` being tinted — matching how real veiling light starts as ~white sunlight and gets tinted by the water column). `b_ref`'s range, and `β_b`'s sampling range `U(0.3, 1.5)` m⁻¹, are both plausible-order-of-magnitude choices, not sourced from a table.
+
 Outputs:
-- DR'd copy of each image, **label file unchanged** (pixel-only transform)
-- `configs/<image_id>_dr.json`: Jerlov type, `d`, `z_near`/`z_far`, per-channel β^D and β^B, `B^∞`, seed
+- `outputs/1-pilot/dr/<image_id>_dr.png` — DR'd copy of each image, **label file unchanged** (pixel-only transform, verified — see Checkpoint 3)
+- `configs/<image_id>_dr.json`: Jerlov type, `d`, `z_near`/`z_far`, per-channel β^D and β^B, `K_d`, `B^∞`, `b_ref`, camera-effect params (below), seed
 
 DUO-specific calibration is **deferred to the full-scale run**, per decision.
+
+**Recalibration: first pass was "way too extreme, none of the images close to DUO."** `β_b` was originally sampled from a single fixed `U(0.3, 1.5)` m⁻¹ range independent of the image's own scale — a merely-average sample on a wide shot (`z_far` up to 6m) fully blacked out the frame well before the far edge, while the same sample on a close-up shot looked fine. Fixed by coupling `β_b`'s sampling ceiling to each image's own `z_far` (`z_far_beta_b_cap()` in `domain_randomize.py`): the red channel (fastest-attenuating) is guaranteed to retain at least a `visibility_floor` fraction of direct signal at that image's own far edge.
+
+**Then: DR and original looked too similar across the board.** The fix above, done with one fixed `visibility_floor`, made every image similarly (mildly) hazy - it eliminated the extreme tail but also the dark tail. Fixed by sampling `visibility_floor` itself per image from `U(0.08, 0.45)` (was a fixed 0.25) and widening `b_ref` to `U(0.5, 1.0)` (was `U(0.7, 1.0)`) - the DR set now spans mild to notably dark/murky rather than clustering at one "safe" look, while the z_far-coupling still prevents pure blackout regardless of how dark a given draw is.
+
+**Three camera-level effects added, applied after the physics transform in real-pipeline order (lens → optics → sensor):** Jerlov/Akkaynak-Treibitz only covers turbidity/haze/backscatter and the depth-component of ambient lighting - it says nothing about the camera itself. Added, all pure numpy/opencv, no model weights:
+- **Vignette** — multiplicative radial darkening from a slightly off-centre point (simulating an ROV-mounted light, not a lens-centred one). `strength ~ U(0, 0.35)`, centre offset `~ U(-0.15, 0.15)` of half-width/height.
+- **Motion blur** — mild linear kernel, `length ~ U(0, 4)` px at 1024 resolution (0 = no blur for some images), `angle ~ U(0, 360)`°. Reinforces what the Stage 1 prompts already ask for textually (`prompts.py`'s `CAMERA_MOTION`) but can't reliably guarantee as an actual pixel effect.
+- **Sensor noise** — signal-dependent shot+read Gaussian noise (`N(0, σ_read² + σ_shot²·pixel_value)`, the standard heteroscedastic approximation per Brooks et al. CVPR 2019), scaled up with `d` (deeper → the ROV's camera would gain up → more visible noise).
+
+Not covered by any of the above, and not yet added: non-Jerlov-depth-dependent lighting variation (sun angle, caustics), that's a bigger scope decision than the three above.
 
 Note: `C:\dev\ImageTranform\domain_randomize_batch.py` is an ad-hoc per-channel RGB shift, not this model. Reusable as batch-loop scaffolding only.
 
 ### Checkpoint 3 — DR verification
-- **Overlay the unchanged label boxes on the DR'd image and confirm alignment.** Cheapest possible test that the transform did not resize, crop or flip — and it directly tests a pilot success criterion.
-- Eyeball against DUO: does 3C at d≈4m land in the right neighbourhood, or is it far too dark/green? Records whether Jerlov defaults are close enough to make explicit DUO calibration worthwhile at scale.
+- **Overlay the unchanged label boxes on the DR'd image and confirm alignment.** Cheapest possible test that the transform did not resize, crop or flip — and it directly tests a pilot success criterion. **Done for 5 pilot images** (`outputs/1-pilot/viz/dr_check/`), re-run after the recalibration and the vignette/motion-blur/sensor-noise additions — boxes still land exactly on the starfish/sea urchin/scallop silhouettes (including `pilot_020`'s sea urchin and scallop classes, and `pilot_012`'s strong vignette case), confirming all three new effects stayed pixel-only.
+- Eyeball against DUO: does 3C at d≈4m land in the right neighbourhood, or is it far too dark/green? Records whether Jerlov defaults are close enough to make explicit DUO calibration worthwhile at scale. **Not yet done** - worth a pass once more DUO reference frames are on hand.
+
+**Box alignment ≠ detectability - a distinction worth being explicit about.** The box-alignment check above only proves the transform is geometric-free (no resize/crop/flip) - since `domain_randomize.py` never touches array shape or position, that alignment is guaranteed by construction, not really a discovery. It says nothing about whether the *object* is still visually recognizable inside that box after haze/vignette/noise, which is a real and separate risk now that `visibility_floor` deliberately has a dark tail (down to 0.08).
+
+There are two distinct downstream failure modes this doesn't rule out:
+1. **The object becomes undetectable** (count/confidence collapses toward zero on a given image) - expected to *some* degree since that's what makes DR useful for robustness training, but a full collapse on a given image would mean that image-label pair is effectively mislabeled (the "answer" isn't recoverable from the pixels), not useful augmentation.
+2. **Wrong-class detection in degraded regions** - SAM3 runs one independent forward pass per class prompt (never a joined multi-class prompt), so a degraded region could plausibly trigger a false positive under the *wrong* class's pass (e.g. a hazy scallop read as sea urchin). This wouldn't show up as a simple count drop - it shows up as a wrong-coloured box on the wrong species, and needs an actual re-detection pass to check, not an assumption from the alignment test.
+
+**Check performed: rerun SAM3 on the DR'd set** (effectively Checkpoint 2.5's methodology - the one that caught GDINO's scallop weakness - applied to the DR'd images instead of the clean ones):
+- Labels: `outputs/1-pilot/labels/dr_sam3/` (kept separate from `labels/sam3/`, which holds the clean-image ground truth these DR'd images' *actual* training labels are copied from unchanged - Stage 3b's whole label-reuse scheme depends on that copy staying untouched)
+- Report: `reports/class_counts_dr.json` (kept separate from `reports/class_counts.json`, the clean-image baseline this is compared against)
+- Viz: `outputs/1-pilot/viz/dr_sam3/` - colour-coded per class (red=starfish, green=sea urchin, blue=scallop, same convention as every other viz in this pipeline), for manual review at n=20 rather than an automated cross-class-confusion metric
+
+**Quantified with `src/dr_detection_check.py`** - matches each original ground-truth box against the DR re-detections by IoU (>=0.3 threshold, same class = matched, different class = misclassified, no match = missed):
+
+| class | total | matched | misclassified | missed |
+|---|---|---|---|---|
+| starfish | 44 | 44 | 0 | 0.0% |
+| sea urchin | 48 | 37 | 0 | 22.9% |
+| scallop | 70 | 45 | 0 | 35.7% |
+| **all** | **162** | **126** | **0** | **22.2%** |
+
+**Zero misclassification** - the wrong-class-detection concern (Stage 2's independent-per-class-prompt design means a degraded region could plausibly fire under the wrong class) didn't materialize at this threshold; SAM3's presence gate abstains on degraded regions rather than firing a wrong-class false positive. **Real, class-specific detectability loss instead:** starfish survives DR perfectly, scallop - already this pipeline's weakest class throughout (low contrast, partial burial, camouflaged-by-design morphology) - loses over a third of its instances. This is a difficulty-calibration signal for `visibility_floor`'s dark tail (down to 0.08), not a tooling problem - **the fix, if one is needed, is narrowing that range in `domain_randomize.py`, not swapping or fine-tuning SAM3** (SAM3's actual job is annotating the *clean* images, where it already performs well - see Checkpoint 2.5).
+
+**Architecture note:** the DR'd images that feed Stage 4 always carry the **original clean-image labels** (`outputs/1-pilot/labels/sam3/`), never the `dr_sam3` re-detections - using a detector's own predictions on the degraded image as ground truth would record false negatives for real, correctly-labeled instances and actively teach the wrong thing. `dr_sam3` is diagnostic-only. The actual DR'd-image + original-label training pairs are visualized at `outputs/1-pilot/dr_labeled/` (via `visualize_annotations.py --strip-suffix _dr`).
 
 ---
 
@@ -315,8 +390,8 @@ Note: `C:\dev\ImageTranform\domain_randomize_batch.py` is an ad-hoc per-channel 
 - Resize/center-crop to 640×640 here
 - Ultralytics layout: `images/train`, `images/val`, `labels/train`, `labels/val`, `data.yaml`
 - **A raw image and its DR'd copy must land in the same split.** Splitting them puts a recoloured copy of a training image into val — leakage.
-- At pilot scale, consider putting all 22 pairs in train and skipping val — an 11-image val set carries no statistical signal and this plan's criteria are explicitly qualitative. Build the split logic anyway; it is needed at full scale.
-- Pilot scale: 11 raw + 11 DR'd = 22 image-label pairs
+- At pilot scale, consider putting all 40 pairs in train and skipping val — a handful of val images carries no statistical signal and this plan's criteria are explicitly qualitative. Build the split logic anyway; it is needed at full scale.
+- Pilot scale: 20 raw + 20 DR'd = 40 image-label pairs
 
 ---
 
@@ -326,7 +401,7 @@ Paused pending manual review of Stage 1-4 outputs. Do not start until explicitly
 
 ---
 
-## Pilot success criteria (qualitative, not statistical at n=11)
+## Pilot success criteria (qualitative, not statistical at n=20)
 
 - Klein produces visually plausible, class-diverse images with the **correct sense** (live animal, not food) and **correct anatomy** for all 3 remaining classes
 - Stage 1 output is colour-neutral enough to serve as `J_c` input to Stage 3b

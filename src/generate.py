@@ -1,16 +1,40 @@
 """Stage 0.5 / Stage 1 image generation.
 
-Klein only. SD3.5 was dropped after the smoke-test comparison: it botched
-sea urchin spine anatomy (short blunt bumps rather than thin sharp spines,
-a real shape defect) and consistently shot every class as an isolated macro
-product photo rather than the wide-angle survey-camera framing this pipeline
-needs - Klein respected that framing and SD3.5 did not.
+klein, plus flux2dev as a future candidate. SD3.5 was dropped after the
+smoke-test comparison: it botched sea urchin spine anatomy (short blunt bumps
+rather than thin sharp spines, a real shape defect) and consistently shot
+every class as an isolated macro product photo rather than the wide-angle
+survey-camera framing this pipeline needs - Klein respected that framing and
+SD3.5 did not.
+
+flux2dev and qwenimage were added after the 20-image klein pilot showed a
+visible instance-count overshoot (pilot_012 asked for 7 starfish, rendered
+~9-10), to smoke-test as possible replacements. qwenimage was dropped after
+that test and its weights deleted from the pod: it rendered only ~5 starfish
+for the same 7-instance prompt (undershoot, not a fix) and additionally put a
+visible robot/rover in frame - an out-of-distribution object klein never
+produces, and worse than klein's problem, not better. flux2dev remains a
+**future** candidate, not yet tested: its transformer+text-encoder combo needs
+`enable_model_cpu_offload()` to fit at all (see below), and that offload path
+already crashed this pod once on qwenimage's pre-quantization attempt by
+exceeding the container's real RAM cap (~58GB via /sys/fs/cgroup/memory.max,
+not the much larger host total `free -h` reports) - worth retrying on a
+higher-RAM pod. See the plan doc's Stage 1 section for the full comparison.
+
+  - flux2dev: black-forest-labs/FLUX.2-dev, the 32B undistilled model Klein
+    was distilled from. Its Mistral Small 3.1 (~24B) text encoder makes the
+    combined footprint too large for a 47GB card in plain bf16, so both the
+    transformer and text encoder are fp8-quantized on load (see
+    `_build_quantization_config`) - needs the `torchao` dependency and a GPU
+    with compute capability >= 8.9 (RTX 4090/6000 Ada and newer) for native
+    fp8 tensor cores. Same non-commercial BFL license as klein.
 
     # no GPU needed - check prompts before you pay for a pod
     python src/generate.py --model klein --manifest manifests/smoke.json --dry-run
 
     # on the pod
-    python src/generate.py --model klein --manifest manifests/smoke.json
+    python src/generate.py --model klein    --manifest manifests/smoke.json
+    python src/generate.py --model flux2dev --manifest manifests/smoke.json
     python src/generate.py --model klein --manifest manifests/pilot.json
 
 Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/.
@@ -36,15 +60,52 @@ MODELS = {
         # negative_prompt. Exclusions are folded into the positive prompt.
         "supports_negative": False,
         "approx_vram_gb": 29,
+        "quantize_components": [],
+    },
+    "flux2dev": {
+        "repo": "black-forest-labs/FLUX.2-dev",
+        "pipeline": "Flux2Pipeline",
+        "steps": 50,
+        "guidance": 4.0,
+        # Same situation as klein: no text-level negative_prompt on this
+        # pipeline either (checked via inspect.signature(Flux2Pipeline.__call__)).
+        "supports_negative": False,
+        # fp8 transformer (~32GB) + fp8 text encoder (~24GB) never coexist on
+        # GPU at once - load_pipeline's offload fallback keeps peak usage near
+        # whichever single component is larger, not their sum. BUT: RunPod
+        # containers can cap system RAM well below what `free -h` reports (see
+        # /sys/fs/cgroup/memory.max - one pod measured ~58GB against a 503GB
+        # host). enable_model_cpu_offload() needs BOTH components resident in
+        # CPU RAM at once (each is swapped to GPU in turn, not deleted), which
+        # can exceed that cap even though neither alone would. Verify
+        # memory.max before running this on a new pod.
+        "approx_vram_gb": 32,
+        "quantize_components": ["transformer", "text_encoder"],
     },
 }
+
+
+def _build_quantization_config(components: list[str]):
+    """fp8 weight-only quantization for the given pipeline component names.
+
+    Requires torchao and a >=8.9 compute capability GPU (RTX 4090/6000 Ada,
+    Hopper) for native fp8 tensor cores; falls back to (slower) emulated fp8
+    on older cards.
+    """
+    from diffusers import PipelineQuantizationConfig, TorchAoConfig
+    from torchao.quantization import Float8WeightOnlyConfig
+
+    return PipelineQuantizationConfig(
+        quant_mapping={name: TorchAoConfig(Float8WeightOnlyConfig()) for name in components}
+    )
 
 
 def load_pipeline(model_key: str, offload_mode: str):
     """Load the pipeline, falling back to CPU offload if it will not fit.
 
     Weights land in CPU RAM first, so the OOM fallback costs a device transfer
-    rather than a re-download.
+    rather than a re-download. Note this fallback is not a safe last resort for
+    every model - see flux2dev's RAM-cap comment above.
     """
     import torch
     import diffusers
@@ -52,8 +113,13 @@ def load_pipeline(model_key: str, offload_mode: str):
     cfg = MODELS[model_key]
     pipe_cls = getattr(diffusers, cfg["pipeline"])
 
-    print(f"loading {cfg['repo']} ({cfg['pipeline']}, bf16)...")
-    pipe = pipe_cls.from_pretrained(cfg["repo"], torch_dtype=torch.bfloat16)
+    from_pretrained_kwargs = {"torch_dtype": torch.bfloat16}
+    if cfg["quantize_components"]:
+        from_pretrained_kwargs["quantization_config"] = _build_quantization_config(cfg["quantize_components"])
+
+    quant_label = f"  fp8-quantized({','.join(cfg['quantize_components'])})" if cfg["quantize_components"] else ""
+    print(f"loading {cfg['repo']} ({cfg['pipeline']}, bf16{quant_label})...")
+    pipe = pipe_cls.from_pretrained(cfg["repo"], **from_pretrained_kwargs)
 
     total_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
     print(f"gpu: {torch.cuda.get_device_name(0)} ({total_gb:.1f} GB)")

@@ -1,0 +1,45 @@
+{
+  "image_id": "pilot_016",
+  "source_image": "outputs\\1-pilot\\klein\\pilot_016_klein.png",
+  "range_map": "outputs\\1-pilot\\range\\pilot_016_klein_range.npy",
+  "seed": 42016,
+  "camera_effects": {
+    "sigma_read": 0.008215377340821017,
+    "sigma_shot": 0.049435882141682846,
+    "motion_blur_length_px": 3.4090511799110175,
+    "motion_blur_angle_deg": 123.66358433110526,
+    "vignette_strength": 0.27302074334995396,
+    "vignette_center_offset": [
+      -0.11819857409447099,
+      0.06404677033458864
+    ]
+  },
+  "z_near": 0.3,
+  "z_far": 4.301956215074305,
+  "water_type": "3C",
+  "visibility_floor": 0.09760614860995191,
+  "vertical_depth_d_m": 0.4669183395003168,
+  "beta_b_sampled": 0.19470576979485477,
+  "beta_b_cap_used": 0.21910791837475294,
+  "beta_D_rgb": [
+    0.4806363115153166,
+    0.20411549407155338,
+    0.19470576979485477
+  ],
+  "beta_B_rgb": [
+    0.4806363115153166,
+    0.20411549407155338,
+    0.19470576979485477
+  ],
+  "kd_rgb": [
+    0.650611133053567,
+    0.2763,
+    0.26356257
+  ],
+  "b_ref": 0.519945607212124,
+  "B_inf_rgb": [
+    0.3837310569489042,
+    0.4570142935799419,
+    0.45974041135443394
+  ]
+}

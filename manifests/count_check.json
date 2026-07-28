@@ -1,0 +1,38 @@
+{
+  "stage": "0.5-smoke",
+  "base_seed": 42,
+  "class_map": {
+    "0": {
+      "duo_label": "starfish",
+      "short": "starfish"
+    },
+    "1": {
+      "duo_label": "echinus",
+      "short": "sea urchin"
+    },
+    "2": {
+      "duo_label": "scallop",
+      "short": "scallop"
+    }
+  },
+  "rows": [
+    {
+      "row": 12,
+      "image_id": "pilot_012",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 7
+      },
+      "total_instances": 7,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42012
+    }
+  ]
+}

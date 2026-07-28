@@ -69,3 +69,70 @@ def beta_rgb(water_type: str, beta_b: float) -> tuple[float, float, float]:
     beta_g = beta_b / ratios.beta_bg
     beta_r = beta_b / ratios.beta_br
     return beta_r, beta_g, beta_b
+
+
+# ============================================================================
+# VEILING LIGHT (B_c^infinity) - Kd approximation
+# ============================================================================
+#
+# STATUS: flagged simplification, not a primary-sourced Kd(lambda) table.
+# Confirmed with the user before use (2026-07-28 chat) after an attempt to
+# source one failed - see AI_Pipeline_Test_Plan.md's Stage 3b section for the
+# full trail:
+#
+#   - Akkaynak & Treibitz's revised model needs B_c^infinity(d), the veiling
+#     light colour/intensity as a function of VERTICAL DEPTH d (distinct from
+#     beta_rgb's z-range attenuation above).
+#   - The natural source is a Jerlov depth-irradiance chart (K_d(lambda) per
+#     water type). Williamson & Hollins 2023 ("Depth profiles of Jerlov water
+#     types", Limnol. Oceanogr. Lett. 8:781-788) was checked directly (PDF
+#     read in full) and does NOT contain this: it studies whether a water
+#     column's Jerlov TYPE classification drifts with depth, not Kd magnitude
+#     by wavelength. Its own Table 3 (reconstructed from Jerlov 1976 fig. 71)
+#     stops at type "1C" - no 3C/5C data exists there either. The actual
+#     Kd(lambda) numbers live in a supplementary figshare dataset this PDF
+#     references but does not contain.
+#   - One thing that IS useful from that paper: its finest depth resolution
+#     near the surface is a single 0-10m bucket. Our pilot's entire d range
+#     (0-5m) sits inside that one bucket - there is no published evidence of
+#     resolvable optical change within 0-5m specifically, so treating a
+#     chosen type's attenuation as constant across our whole d range is not
+#     cutting a corner the literature would otherwise resolve.
+#
+# SIMPLIFICATION USED (two stacked assumptions, both flagged):
+#   1. Kd's per-channel SPECTRAL SHAPE reuses the SAME beta_bg/beta_br ratios
+#      as beam attenuation above. Kd (diffuse, vertical) and beam attenuation
+#      c=a+b (used for beta_rgb, horizontal range) are physically different
+#      quantities - this treats them as sharing the same relative R/G/B shape
+#      per water type, which is not verified, only plausible.
+#   2. Kd's ABSOLUTE green-channel magnitude is anchored to one real citation
+#      found during research: "a Kd value of 0.2763 m^-1 is compatible with
+#      Jerlov's coastal water types 3C-5C for the wavelength range 500-550nm"
+#      (secondary citation, exact primary source not confirmed). Applied
+#      UNIFORMLY across 1C/3C/5C - i.e. this does NOT differentiate the
+#      absolute Kd magnitude between the three coastal types, only their R/G/B
+#      shape (via the existing ratios). That is a real loss of information
+#      Jerlov's type ordering implies (1C should genuinely attenuate less than
+#      5C) that this approximation does not capture.
+#
+# Likely fixable with Solonenko & Mobley 2015 ("Inherent optical properties of
+# Jerlov water types", Appl. Opt. 54(17):5392-5401) if that becomes available -
+# it is the primary IOP source this whole ratio table already wanted (see this
+# file's top docstring) and would probably resolve both stacked assumptions at
+# once, not just this one.
+
+KD_GREEN_ANCHOR_1976 = 0.2763  # m^-1, ~500-550nm, cited as compatible with 3C-5C
+
+
+def kd_rgb(water_type: str, kd_green: float = KD_GREEN_ANCHOR_1976) -> tuple[float, float, float]:
+    """Per-channel diffuse attenuation coefficient (Kd_R, Kd_G, Kd_B), m^-1.
+
+    Same ratio math as beta_rgb() but starting from a green anchor since that
+    is what the one sourced Kd citation gives us (beta_rgb starts from blue
+    because that is what beta_b happened to be free in). See this section's
+    module-level comment for what is and isn't sourced here.
+    """
+    ratios = COASTAL_TYPES[water_type]
+    kd_blue = kd_green * ratios.beta_bg
+    kd_red = kd_blue / ratios.beta_br
+    return kd_red, kd_green, kd_blue

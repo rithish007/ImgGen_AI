@@ -22,14 +22,16 @@ WARNINGS: list[tuple[str, str]] = []
 
 MODEL_REPOS = [
     "black-forest-labs/FLUX.2-klein-base-9B",
+    "black-forest-labs/FLUX.2-dev",
     "stabilityai/stable-diffusion-3.5-large",
     "facebook/sam3",
     "IDEA-Research/grounding-dino-base",
     "depth-anything/Depth-Anything-V2-Large-hf",
 ]
 
-# Weights + HF cache overhead + pilot outputs.
-REQUIRED_GB = 80
+# Weights + HF cache overhead + pilot outputs. Bumped from 80 for flux2dev
+# (32B transformer + ~24B Mistral text encoder, ~90GB combined even after fp8).
+REQUIRED_GB = 150
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
@@ -171,7 +173,7 @@ def check_libraries() -> None:
     check("transformers", True, transformers.__version__)
 
     for mod, names in (
-        (diffusers, ["Flux2KleinPipeline", "StableDiffusion3Pipeline"]),
+        (diffusers, ["Flux2KleinPipeline", "Flux2Pipeline", "StableDiffusion3Pipeline"]),
         (transformers, ["Sam3Model", "Sam3Processor",
                         "GroundingDinoForObjectDetection",
                         "DepthAnythingForDepthEstimation"]),
@@ -184,6 +186,12 @@ def check_libraries() -> None:
         check("accelerate", True, accelerate.__version__)
     except ImportError:
         check("accelerate", False, "required by enable_model_cpu_offload()")
+
+    try:
+        import torchao
+        check("torchao", True, torchao.__version__)
+    except ImportError:
+        check("torchao", False, "required for flux2dev's fp8 quantization (not needed for klein)")
 
 
 def main() -> int:
