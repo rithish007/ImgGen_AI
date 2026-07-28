@@ -166,23 +166,31 @@ CLASSES: dict[int, dict[str, object]] = {
         "duo_label": "scallop",
         "short": "scallop",
 
+        # "mostly closed with only a narrow edge of pale living tissue visible"
+        # (previous wording) still rendered as a wide gaping shell showing a
+        # large smooth pale interior - reads exactly like a plated/served
+        # scallop dish. Rather than trying to constrain how far it opens,
+        # the opening is removed from the description entirely: shells are
+        # described as fully closed, exterior only, no interior/tissue
+        # mentioned at all. A resting, undisturbed scallop is closed anyway -
+        # this is not a less realistic description, it's a safer one.
         "morphology": [
             (
-                "a living scallop with a fan-shaped shell and clearly visible "
-                "radiating ribs, mostly closed with only a narrow edge of pale "
-                "living tissue visible"
+                "a living scallop with a fan-shaped shell, tightly closed, "
+                "clearly visible radiating ribs across the exterior"
             ),
             (
-                "a living fan-shaped scallop shell with strong radial ribs, "
-                "mostly closed and partially buried in sediment"
+                "a living fan-shaped scallop shell, tightly closed, with "
+                "strong radial ribs, partially buried in sediment"
             ),
             (
                 "a small living scallop with a ribbed fan-shaped shell, "
-                "mostly closed and naturally covered by a thin layer of sediment"
+                "tightly closed, naturally covered by a thin layer of sediment"
             ),
             (
                 "a living scallop with a textured fan-shaped ribbed shell, "
-                "partially buried so that only part of the shell is exposed"
+                "tightly closed, partially buried so that only part of the "
+                "shell is exposed"
             ),
         ],
 
@@ -522,7 +530,14 @@ BIOLOGICAL_NEGATIVE = (
     "cooked food, seafood dish, restaurant presentation, plate, kitchen, "
     "sashimi, cooked scallop meat, empty shell, dead shell, beach shell, "
     "shell litter, caterpillar, millipede, centipede, insect legs, larva, "
-    "segmented insect body, articulated legs"
+    "segmented insect body, articulated legs, "
+    # "mostly closed with a narrow edge visible" still rendered as a wide
+    # gaping shell showing smooth pale interior - a served-dish look. These
+    # only help on a model with real negative-prompt support (not Klein);
+    # the actual fix is describing the shell as closed with no interior
+    # mentioned at all (see CLASSES[2]'s morphology entries).
+    "gaping open shell, shucked shellfish, open bivalve interior, scallop meat, "
+    "shell presentation, exposed shell interior"
 )
 
 
@@ -546,7 +561,8 @@ POSITIVE_ONLY_GUARDS = (
     "true-to-life natural colour reproduction, realistic biological morphology, "
     "natural ecological habitat, full rectangular frame, no lens vignette, "
     "no artificial colour grading, realistic underwater camera imagery, "
-    "natural irregular spatial distribution"
+    "natural irregular spatial distribution, bivalve shells fully closed and "
+    "undisturbed as found in their natural habitat"
 )
 
 
