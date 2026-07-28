@@ -1,11 +1,20 @@
 """Build the Stage 1 pilot manifest (and the Stage 0.5 smoke manifest).
 
 3 classes (starfish, sea urchin, scallop - sea cucumber removed, see
-prompts.py's module docstring) = 7 non-empty combinations. The 11-row design
-covers all 7 exactly once, then reinforces single-class exemplars. That makes
-image-level class balance exact by construction: every class appears in
-exactly 5 of 11 rows. (The original 4-class design used 20 rows to cover its
-15 combinations the same way; 11 is the proportionate equivalent for 3.)
+prompts.py's module docstring) = 7 non-empty combinations. The first 11 rows
+cover all 7 exactly once, then reinforce single-class exemplars - every class
+appears in exactly 5 of those 11 rows. (The original 4-class design used 20
+rows to cover its 15 combinations the same way; 11 is the proportionate
+equivalent for 3.)
+
+Rows 12-20 are a second reinforcement round added to bring the pilot to 20
+images total: the same 7-combination coverage again, this time at "dense"
+density and "wide" framing (both unused by rows 1-11), plus two extra
+all-three-classes rows at "sparse" and "moderate" density (also paired with
+"wide", which none of rows 1-11 use) so the triple-class case gets one
+exemplar per density band across the whole 20-row set. Rows 1-11 are
+untouched - same rng draw order, same seeds, same counts - so existing
+outputs/labels for pilot_001..011 remain valid without regeneration.
 
 Instance-level balance is only balanced in expectation - the generator may not
 comply with requested counts, and the Stage 2 detector has its own per-class
@@ -31,7 +40,7 @@ from prompts import CLASSES
 # instance budget for the deliberate combinatorial design below, a different
 # concept from prompts.py's COUNT_RANGES (which is per-class, used only by
 # prompts.py's own independent random generate_dataset_prompts() path).
-DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6)}
+DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6), "dense": (5, 8)}
 
 BASE_SEED = 42
 ALL_CLASSES = sorted(CLASSES)
@@ -55,12 +64,19 @@ def allocate_counts(class_ids: list[int], density: str, rng: random.Random) -> d
 
 
 def build_rows() -> list[tuple[list[int], str, str]]:
-    """(class_ids, density, framing) for each of the 11 pilot rows.
+    """(class_ids, density, framing) for each of the 20 pilot rows.
 
-    3 classes -> 7 non-empty subsets (3 singles + 3 pairs + 1 triple), covered
-    once, then singles and the all-three case are reinforced once more -
-    the same design shape as the original 4-class/20-row/15-combination plan,
-    scaled down to match 3 classes' smaller combination space.
+    Rows 1-11: 3 classes -> 7 non-empty subsets (3 singles + 3 pairs + 1
+    triple), covered once, then singles and the all-three case are reinforced
+    once more - the same design shape as the original 4-class/20-row/
+    15-combination plan, scaled down to match 3 classes' smaller combination
+    space.
+
+    Rows 12-20: second reinforcement round, added later to bring the pilot to
+    20 images total. Repeats the same 7-combination coverage at "dense"
+    density / "wide" framing (neither used by rows 1-11), then adds two more
+    all-three-classes rows at "sparse" and "moderate" density so the triple
+    case has one wide-framing exemplar per density band.
     """
     rows: list[tuple[list[int], str, str]] = []
 
@@ -75,8 +91,18 @@ def build_rows() -> list[tuple[list[int], str, str]]:
     # 11: all three together again, sparse, close-up
     rows.append((list(ALL_CLASSES), "sparse", "close-up"))
 
-    expected = 2 * len(ALL_CLASSES) + len(list(combinations(ALL_CLASSES, 2))) + 2
-    assert len(rows) == expected, f"expected {expected} rows, got {len(rows)}"
+    # 12-14: each class alone again, dense, wide
+    rows += [([c], "dense", "wide") for c in ALL_CLASSES]
+    # 15-17: all 3 pairs again, dense, wide
+    rows += [(list(p), "dense", "wide") for p in combinations(ALL_CLASSES, 2)]
+    # 18: all three together, dense, wide
+    rows.append((list(ALL_CLASSES), "dense", "wide"))
+    # 19: all three together, sparse, wide
+    rows.append((list(ALL_CLASSES), "sparse", "wide"))
+    # 20: all three together, moderate, wide
+    rows.append((list(ALL_CLASSES), "moderate", "wide"))
+
+    assert len(rows) == 20, f"expected 20 rows, got {len(rows)}"
     return rows
 
 

@@ -1,20 +1,26 @@
-"""Stage 2 - auto-annotation. SAM3 and Grounding DINO, one engine per run.
+"""Stage 2 - auto-annotation. SAM3 only.
 
-Both engines run one class per forward pass, never a period-joined multi-class
-prompt - see the plan doc's Stage 2 section for why (SAM3 only accepts a single
-noun phrase per call anyway; Grounding DINO's multi-class prompts collide on
-shared tokens like "sea").
+Grounding DINO was dropped after the 20-image pilot comparison: on the same
+set SAM3 found 70 scallop instances across 17/20 images while GDINO found only
+4 across 3/20 (starfish and sea urchin were closer - 44 vs 41, 48 vs 29 - but
+scallop recall alone made GDINO unusable for this pipeline). See
+`reports/class_counts.json` for the measured counts and the plan doc's Stage 2
+section for the full comparison. GDINO's existing labels/viz under
+`outputs/1-pilot/labels/gdino/` and `outputs/1-pilot/viz/gdino/` are left in
+place as the historical record of that comparison, not deleted.
+
+Runs one class per forward pass, never a period-joined multi-class prompt -
+SAM3 only accepts a single noun phrase per call anyway.
 
 Annotates the CLEAN Stage 1 image. Stage 3's domain-randomization transform is
 pixel-only, so the same label file is valid for the DR'd copy.
 
-    python src/annotate.py --engine sam3  --images-dir outputs/1-pilot/klein --dry-run
-    python src/annotate.py --engine sam3  --images-dir outputs/1-pilot/klein
-    python src/annotate.py --engine gdino --images-dir outputs/1-pilot/klein
+    python src/annotate.py --images-dir outputs/1-pilot/klein --dry-run
+    python src/annotate.py --images-dir outputs/1-pilot/klein
 
 Outputs:
-    outputs/1-pilot/labels/<engine>/<image_id>.txt   (YOLO format)
-    reports/class_counts.json                        (merged across engines)
+    outputs/1-pilot/labels/sam3/<image_id>.txt   (YOLO format)
+    reports/class_counts.json                    (merged across engines)
 """
 
 from __future__ import annotations
@@ -33,11 +39,6 @@ ENGINES = {
         "mask_threshold": 0.5,
         # final_score = instance_score * presence_score must clear this too.
         "presence_threshold": 0.5,
-    },
-    "gdino": {
-        "repo": "IDEA-Research/grounding-dino-base",
-        "threshold": 0.4,
-        "text_threshold": 0.3,
     },
 }
 
@@ -141,59 +142,9 @@ def run_sam3(image_paths: list[Path], out_dir: Path, cfg: dict) -> dict[int, dic
     return per_class
 
 
-def run_gdino(image_paths: list[Path], out_dir: Path, cfg: dict) -> dict[int, dict[str, float]]:
-    import torch
-    from PIL import Image
-    from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
-
-    print(f"loading {cfg['repo']} (GroundingDinoForObjectDetection)...")
-    model = AutoModelForZeroShotObjectDetection.from_pretrained(cfg["repo"], device_map="auto")
-    processor = AutoProcessor.from_pretrained(cfg["repo"])
-
-    prompts = detector_prompts()
-    per_class = {cid: {"instances": 0, "images_with_detection": 0, "confidence_sum": 0.0} for cid in prompts}
-
-    for i, path in enumerate(image_paths, start=1):
-        image = Image.open(path).convert("RGB")
-        img_w, img_h = image.size
-
-        lines = []
-        for class_id, prompt in prompts.items():
-            # One class per call, not a period-joined multi-class prompt -
-            # GDINO's matched-span parsing can otherwise collide on shared
-            # tokens between class names.
-            inputs = processor(images=image, text=[[prompt]], return_tensors="pt").to(model.device)
-            with torch.no_grad():
-                outputs = model(**inputs)
-
-            results = processor.post_process_grounded_object_detection(
-                outputs,
-                threshold=cfg["threshold"],
-                text_threshold=cfg["text_threshold"],
-                target_sizes=[(img_h, img_w)],
-            )[0]
-
-            hit_this_class = False
-            for box, score in zip(results["boxes"], results["scores"]):
-                box = [float(v) for v in box.tolist()]
-                score = float(score.item())
-                lines.append(xyxy_to_yolo_line(class_id, box, img_w, img_h))
-                per_class[class_id]["instances"] += 1
-                per_class[class_id]["confidence_sum"] += score
-                hit_this_class = True
-
-            if hit_this_class:
-                per_class[class_id]["images_with_detection"] += 1
-
-        (out_dir / f"{path.stem}.txt").write_text("\n".join(lines), encoding="utf-8")
-        print(f"[{i:>2}/{len(image_paths)}] {path.name}  {len(lines)} instances")
-
-    return per_class
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--engine", required=True, choices=sorted(ENGINES))
+    ap.add_argument("--engine", default="sam3", choices=sorted(ENGINES))
     ap.add_argument("--images-dir", required=True, type=Path)
     ap.add_argument("--out-dir", type=Path, default=None)
     ap.add_argument("--report", type=Path, default=Path("reports/class_counts.json"))
@@ -219,10 +170,7 @@ def main() -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.engine == "sam3":
-        per_class = run_sam3(image_paths, out_dir, cfg)
-    else:
-        per_class = run_gdino(image_paths, out_dir, cfg)
+    per_class = run_sam3(image_paths, out_dir, cfg)
 
     update_class_counts(args.report, args.engine, per_class)
 

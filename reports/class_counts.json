@@ -1,0 +1,48 @@
+{
+  "sam3": {
+    "0": {
+      "short_name": "starfish",
+      "instance_count": 44,
+      "image_count": 12,
+      "mean_instances_per_image_present": 3.6666666666666665,
+      "mean_confidence": 0.9562797326546101
+    },
+    "1": {
+      "short_name": "sea urchin",
+      "instance_count": 48,
+      "image_count": 12,
+      "mean_instances_per_image_present": 4.0,
+      "mean_confidence": 0.7643349406696793
+    },
+    "2": {
+      "short_name": "scallop",
+      "instance_count": 70,
+      "image_count": 17,
+      "mean_instances_per_image_present": 4.117647058823529,
+      "mean_confidence": 0.8453979265761434
+    }
+  },
+  "gdino": {
+    "0": {
+      "short_name": "starfish",
+      "instance_count": 41,
+      "image_count": 12,
+      "mean_instances_per_image_present": 3.4166666666666665,
+      "mean_confidence": 0.6738355712192815
+    },
+    "1": {
+      "short_name": "sea urchin",
+      "instance_count": 29,
+      "image_count": 15,
+      "mean_instances_per_image_present": 1.9333333333333333,
+      "mean_confidence": 0.4602898462065335
+    },
+    "2": {
+      "short_name": "scallop",
+      "instance_count": 4,
+      "image_count": 3,
+      "mean_instances_per_image_present": 1.3333333333333333,
+      "mean_confidence": 0.411142073571682
+    }
+  }
+}
