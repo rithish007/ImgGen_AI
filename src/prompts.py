@@ -39,10 +39,19 @@ SCATTER_CUE = (
 # these four classes is a seafood dish. Describing the body - shape, texture,
 # colour, posture on the substrate - anchors it to the live animal instead.
 #
-# The scallop entry in particular must NOT say "shell open": the v7 smoke test
-# rendered that as cooked scallop meat presented in open shells. Live scallops
-# in survey imagery are closed or barely gaped and usually partly buried, with
-# only the ribbed upper valve showing.
+# The scallop entry must NOT say "shell open": the v7 smoke test rendered that
+# as cooked scallop meat presented in open shells. Live scallops in survey
+# imagery are closed or barely gaped and usually partly buried, with only the
+# ribbed upper valve showing.
+#
+# The sea cucumber entry avoids ANY word that names the wrong anatomy, even
+# negated. v8's "elongated leathery body with blunt conical papillae" rendered
+# as a toy caterpillar/millipede with neat symmetric rows of leg-like cones -
+# diffusion models routinely embed a concept whether or not it is negated, so
+# "not a caterpillar, no legs" would likely still draw a caterpillar. The fix
+# is to give it a *correct* positive anchor instead: real holothurians read as
+# smooth, legless, slug-like cylinders, so "slug" does that work without ever
+# naming the wrong animal.
 CLASSES: dict[int, dict[str, str]] = {
     0: {
         "duo_label": "starfish",
@@ -59,14 +68,14 @@ CLASSES: dict[int, dict[str, str]] = {
     2: {
         "duo_label": "holothurian",
         "short": "sea cucumber",
-        "singular": "a dark brown sea cucumber, elongated leathery body with blunt conical papillae, resting on the sediment",
-        "plural": "{n} dark brown sea cucumbers, elongated leathery bodies with blunt conical papillae, resting on the sediment, {scatter}",
+        "singular": "a sea cucumber, a plump soft cylindrical body like a thick dark slug, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless on the sediment",
+        "plural": "{n} sea cucumbers, plump soft cylindrical bodies like thick dark slugs, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless on the sediment, {scatter}",
     },
     3: {
         "duo_label": "scallop",
         "short": "scallop",
-        "singular": "a scallop, fan-shaped shell with radiating ribs, closed and half-buried in the sediment with only the upper valve showing",
-        "plural": "{n} scallops, fan-shaped shells with radiating ribs, closed and half-buried in the sediment with only the upper valves showing, {scatter}",
+        "singular": "a scallop, a fan-shaped shell with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried in the sediment",
+        "plural": "{n} scallops, fan-shaped shells with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried in the sediment, {scatter}",
     },
 }
 
@@ -116,7 +125,13 @@ NEGATIVE = (
     "voronoi pattern, cracked pattern, net pattern, "
     "fisheye, circular vignette, black border, black corners, vignetting, "
     "coral reef, coral, tropical fish, anemone, "
-    "cooked, food, seafood dish, plate, restaurant, sashimi, open shell, shellfish meat"
+    "cooked, food, seafood dish, plate, restaurant, sashimi, open shell, shellfish meat, "
+    # v8 failures: sea cucumber rendered as a caterpillar/millipede, scallop
+    # shells read as empty/dead. SD3.5 has real negative-prompt suppression,
+    # unlike Klein, so these terms only help here.
+    "caterpillar, millipede, centipede, larva, insect legs, "
+    "segmented body, articulated legs, rows of legs, worm with legs, "
+    "empty shell, dead shell, beachcombed shell, shell litter, bleached shell"
 )
 
 # Affirmative restatement of NEGATIVE, for pipelines with no negative_prompt.
