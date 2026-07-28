@@ -24,48 +24,66 @@ Three things this module exists to get right:
 from __future__ import annotations
 
 # Appended whenever more than one instance of a class is requested, to break
-# the "identical clones at regular spacing" failure mode.
+# the "identical clones at regular spacing" failure mode. Verified effective in
+# the v7 smoke test (starfish/sea cucumber rows came back naturally scattered).
 SCATTER_CUE = (
     "individuals of varying sizes and orientations, scattered at different "
     "distances from the camera, unevenly spaced, some partially buried in "
-    "sand or tucked among rocks"
+    "sediment or tucked among rocks"
 )
 
 # class_id matches DUO exactly. Do not renumber.
+#
+# Phrasing is morphological rather than nominal. Naming the animal alone pulls
+# the model toward the most photographed sense of the word, which for two of
+# these four classes is a seafood dish. Describing the body - shape, texture,
+# colour, posture on the substrate - anchors it to the live animal instead.
+#
+# The scallop entry in particular must NOT say "shell open": the v7 smoke test
+# rendered that as cooked scallop meat presented in open shells. Live scallops
+# in survey imagery are closed or barely gaped and usually partly buried, with
+# only the ribbed upper valve showing.
 CLASSES: dict[int, dict[str, str]] = {
     0: {
         "duo_label": "starfish",
         "short": "starfish",
-        "singular": "a starfish on the seabed",
-        "plural": "{n} starfish on the seabed, {scatter}",
+        "singular": "a five-armed starfish lying flat against the sediment, mottled brown and grey",
+        "plural": "{n} five-armed starfish lying flat against the sediment, mottled brown and grey, {scatter}",
     },
     1: {
         "duo_label": "echinus",
         "short": "sea urchin",
-        "singular": "a spiny sea urchin on the rocky seabed",
-        "plural": "{n} spiny sea urchins on the rocky seabed, {scatter}",
+        "singular": "a dark purple-black sea urchin, a round test covered in short dense spines, sitting on the bottom",
+        "plural": "{n} dark purple-black sea urchins, round tests covered in short dense spines, sitting on the bottom, {scatter}",
     },
     2: {
         "duo_label": "holothurian",
         "short": "sea cucumber",
-        "singular": "a live sea cucumber crawling on the sandy seabed",
-        "plural": "{n} live sea cucumbers crawling on the sandy seabed, {scatter}",
+        "singular": "a dark brown sea cucumber, elongated leathery body with blunt conical papillae, resting on the sediment",
+        "plural": "{n} dark brown sea cucumbers, elongated leathery bodies with blunt conical papillae, resting on the sediment, {scatter}",
     },
     3: {
         "duo_label": "scallop",
         "short": "scallop",
-        "singular": "a live scallop, shell open, resting on the sandy seabed",
-        "plural": "{n} live scallops, shells open, resting on the sandy seabed, {scatter}",
+        "singular": "a scallop, fan-shaped shell with radiating ribs, closed and half-buried in the sediment with only the upper valve showing",
+        "plural": "{n} scallops, fan-shaped shells with radiating ribs, closed and half-buried in the sediment with only the upper valves showing, {scatter}",
     },
 }
 
-# Names a real photographic condition that is both underwater and colour-neutral.
-# Sun caustics are the load-bearing cue: dappled light on the seabed reads as
-# unmistakably submerged while costing no colour cast. Output must approximate
-# scene radiance J_c, which is what the Stage 3b physics transform consumes.
+# Matches DUO's actual habitat: temperate Chinese coastal seabed - sand, gravel
+# and scattered rock. NOT tropical reef. The v7 smoke test used "shallow
+# tropical reef flat", which produced coral heads and tropical species and put
+# the whole pilot in the wrong domain before Stage 3 even ran.
+#
+# Lighting is deliberately understated. v7 used "sun caustics rippling across
+# the sandy seabed" and every image came back with a hard-edged white polygonal
+# web across the sand, like a Voronoi diagram drawn in marker pen. Real caustics
+# in survey imagery are low-contrast brightness variation, not white lines - so
+# they are described softly here and the failure mode is pushed into NEGATIVE.
 SCENE = (
-    "underwater photograph, shallow tropical reef flat, bright sunlight, "
-    "sun caustics rippling across the sandy seabed, clear water, high visibility, "
+    "underwater photograph, temperate coastal seabed, sand and fine gravel bottom "
+    "with scattered rocks, soft diffuse daylight from above, gentle low-contrast "
+    "variation in brightness across the bottom, clear water, good visibility, "
     "natural colour, neutral white balance"
 )
 
@@ -79,7 +97,11 @@ COMPOSITION = (
     "not centered, not symmetrical"
 )
 
-CAMERA = "wide-angle ROV camera, slight fisheye distortion, photorealistic"
+# "slight fisheye distortion" was removed after v7: it was applied as a full
+# circular fisheye, leaving a black vignette ring around the frame. That is
+# fatal for this pipeline - the black corners survive the Stage 4 640x640 crop
+# and would be baked into the dataset as fake image content.
+CAMERA = "wide-angle underwater survey camera, photorealistic, sharp focus"
 
 NEGATIVE = (
     "text, watermark, diver, boat, human, water surface, sky, "
@@ -88,14 +110,22 @@ NEGATIVE = (
     "illustration, drawing, cartoon, 3d render, "
     "product photo, stock photo, catalog photo, studio lighting, "
     "centered composition, symmetrical, posed, staged, "
-    "cloned, duplicated, identical copies, grid pattern, repeating pattern"
+    "cloned, duplicated, identical copies, grid pattern, repeating pattern, "
+    # v7 failures, in priority order
+    "caustics, light caustics, white lines on sand, polygonal light pattern, "
+    "voronoi pattern, cracked pattern, net pattern, "
+    "fisheye, circular vignette, black border, black corners, vignetting, "
+    "coral reef, coral, tropical fish, anemone, "
+    "cooked, food, seafood dish, plate, restaurant, sashimi, open shell, shellfish meat"
 )
 
 # Affirmative restatement of NEGATIVE, for pipelines with no negative_prompt.
 # Deliberately avoids "evenly lit" / "colour-accurate" - both read as studio-
 # photography language and contributed to the v6 staged-product-shot look.
 POSITIVE_ONLY_GUARDS = (
-    "natural uneven sunlight, true-to-life colour, no artificial colour grading, "
+    "true-to-life colour, no artificial colour grading, "
+    "soft even ambient light with no harsh highlights on the sand, "
+    "full rectangular frame, no lens vignette, "
     "open natural habitat, unobstructed view of the seafloor"
 )
 
