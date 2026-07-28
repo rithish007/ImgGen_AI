@@ -23,14 +23,33 @@ Three things this module exists to get right:
 
 from __future__ import annotations
 
-# Appended whenever more than one instance of a class is requested, to break
-# the "identical clones at regular spacing" failure mode. Verified effective in
-# the v7 smoke test (starfish/sea cucumber rows came back naturally scattered).
-SCATTER_CUE = (
-    "individuals of varying sizes and orientations, scattered at different "
-    "distances from the camera, unevenly spaced, some partially buried in "
-    "sediment or tucked among rocks"
-)
+# Per-class spatial arrangement, appended whenever more than one instance is
+# requested. Originally a single global SCATTER_CUE ("unevenly spaced, some
+# distance from the others") applied to every class alike - that fixed the
+# v6 clone-at-regular-spacing problem, but it is biologically wrong for
+# species that naturally aggregate. Real DUO reference photos (user-supplied)
+# show sea urchins wedged tightly into rock crevices, several individuals
+# touching or overlapping - the opposite of "spaced apart". Applying one
+# spacing rule to all four classes was the bug; arrangement is now per-class.
+ARRANGEMENTS: dict[int, str] = {
+    0: (  # starfish: solitary, roams open sediment - matches the approved v8 result
+        "individuals of varying sizes and orientations, scattered across the open "
+        "sediment some distance apart from each other, unevenly spaced"
+    ),
+    1: (  # sea urchin: aggregates in crevices and rock faces - matches DUO reference photos
+        "clustered tightly together in a rocky crevice or wedged against a rock "
+        "face, several individuals touching or overlapping one another, packed "
+        "into the gap between rocks rather than spaced apart"
+    ),
+    2: (  # sea cucumber: solitary, spread across open sediment
+        "individuals resting alone, spread apart across the open sediment, each "
+        "some distance from the others"
+    ),
+    3: (  # scallop: loosely scattered, occasionally two or three close together near a rock
+        "individuals of varying sizes scattered at uneven spacing across the "
+        "sediment, a few resting close together near a rock"
+    ),
+}
 
 # class_id matches DUO exactly. Do not renumber.
 #
@@ -57,25 +76,25 @@ CLASSES: dict[int, dict[str, str]] = {
         "duo_label": "starfish",
         "short": "starfish",
         "singular": "a five-armed starfish lying flat against the sediment, mottled brown and grey",
-        "plural": "{n} five-armed starfish lying flat against the sediment, mottled brown and grey, {scatter}",
+        "plural": "{n} five-armed starfish, mottled brown and grey, {arrangement}",
     },
     1: {
         "duo_label": "echinus",
         "short": "sea urchin",
         "singular": "a dark purple-black sea urchin, a round test covered in short dense spines, sitting on the bottom",
-        "plural": "{n} dark purple-black sea urchins, round tests covered in short dense spines, sitting on the bottom, {scatter}",
+        "plural": "{n} dark purple-black sea urchins, round tests covered in short dense spines, {arrangement}",
     },
     2: {
         "duo_label": "holothurian",
         "short": "sea cucumber",
         "singular": "a sea cucumber, a plump soft cylindrical body like a thick dark slug, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless on the sediment",
-        "plural": "{n} sea cucumbers, plump soft cylindrical bodies like thick dark slugs, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless on the sediment, {scatter}",
+        "plural": "{n} sea cucumbers, plump soft cylindrical bodies like thick dark slugs, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless, {arrangement}",
     },
     3: {
         "duo_label": "scallop",
         "short": "scallop",
         "singular": "a scallop, a fan-shaped shell with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried in the sediment",
-        "plural": "{n} scallops, fan-shaped shells with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried in the sediment, {scatter}",
+        "plural": "{n} scallops, fan-shaped shells with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried, {arrangement}",
     },
 }
 
@@ -89,9 +108,17 @@ CLASSES: dict[int, dict[str, str]] = {
 # web across the sand, like a Voronoi diagram drawn in marker pen. Real caustics
 # in survey imagery are low-contrast brightness variation, not white lines - so
 # they are described softly here and the failure mode is pushed into NEGATIVE.
+#
+# Rock crevices and turf-covered ledges are named explicitly (v9) because the
+# sea urchin ARRANGEMENT above asks it to wedge into one - without a crevice in
+# the scene description, there is nothing for it to cluster into. Still says
+# "clear water, natural colour" deliberately: the green/murky look in real DUO
+# footage is Stage 3's job (Jerlov physics transform on a clean scene), not
+# something to bake in here - see the Stage 3 section of the plan for why.
 SCENE = (
-    "underwater photograph, temperate coastal seabed, sand and fine gravel bottom "
-    "with scattered rocks, soft diffuse daylight from above, gentle low-contrast "
+    "underwater photograph, temperate coastal seabed, mixed sand and rocky bottom "
+    "with crevices, ledges, and ridges, patches of turf algae and encrustation on "
+    "the rock surfaces, soft diffuse daylight from above, gentle low-contrast "
     "variation in brightness across the bottom, clear water, good visibility, "
     "natural colour, neutral white balance"
 )
@@ -165,7 +192,7 @@ def class_phrase(class_id: int, count: int) -> str:
     entry = CLASSES[class_id]
     if count == 1:
         return entry["singular"]
-    return entry["plural"].format(n=_count_word(count), scatter=SCATTER_CUE)
+    return entry["plural"].format(n=_count_word(count), arrangement=ARRANGEMENTS[class_id])
 
 
 def build_prompt(
