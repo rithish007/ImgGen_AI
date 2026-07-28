@@ -1,8 +1,11 @@
 """Build the Stage 1 pilot manifest (and the Stage 0.5 smoke manifest).
 
-The 20-row design covers all 15 non-empty class combinations exactly once, then
-reinforces single-class exemplars. That makes image-level class balance exact by
-construction: every class appears in exactly 10 of 20 rows.
+3 classes (starfish, sea urchin, scallop - sea cucumber removed, see
+prompts.py's module docstring) = 7 non-empty combinations. The 11-row design
+covers all 7 exactly once, then reinforces single-class exemplars. That makes
+image-level class balance exact by construction: every class appears in
+exactly 5 of 11 rows. (The original 4-class design used 20 rows to cover its
+15 combinations the same way; 11 is the proportionate equivalent for 3.)
 
 Instance-level balance is only balanced in expectation - the generator may not
 comply with requested counts, and the Stage 2 detector has its own per-class
@@ -22,7 +25,13 @@ import random
 from itertools import combinations
 from pathlib import Path
 
-from prompts import CLASSES, DENSITY_RANGE
+from prompts import CLASSES
+
+# Local to this file, not imported from prompts.py: this is a per-IMAGE total
+# instance budget for the deliberate combinatorial design below, a different
+# concept from prompts.py's COUNT_RANGES (which is per-class, used only by
+# prompts.py's own independent random generate_dataset_prompts() path).
+DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6)}
 
 BASE_SEED = 42
 ALL_CLASSES = sorted(CLASSES)
@@ -46,23 +55,28 @@ def allocate_counts(class_ids: list[int], density: str, rng: random.Random) -> d
 
 
 def build_rows() -> list[tuple[list[int], str, str]]:
-    """(class_ids, density, framing) for each of the 20 pilot rows."""
+    """(class_ids, density, framing) for each of the 11 pilot rows.
+
+    3 classes -> 7 non-empty subsets (3 singles + 3 pairs + 1 triple), covered
+    once, then singles and the all-three case are reinforced once more -
+    the same design shape as the original 4-class/20-row/15-combination plan,
+    scaled down to match 3 classes' smaller combination space.
+    """
     rows: list[tuple[list[int], str, str]] = []
 
-    # 1-4: each class alone, sparse, close-up
+    # 1-3: each class alone, sparse, close-up
     rows += [([c], "sparse", "close-up") for c in ALL_CLASSES]
-    # 5-10: all 6 pairs, moderate, mid
+    # 4-6: all 3 pairs, moderate, mid
     rows += [(list(p), "moderate", "mid") for p in combinations(ALL_CLASSES, 2)]
-    # 11-14: all 4 triples, moderate, close-up
-    rows += [(list(t), "moderate", "close-up") for t in combinations(ALL_CLASSES, 3)]
-    # 15: all four, moderate, mid
+    # 7: all three together, moderate, mid
     rows.append((list(ALL_CLASSES), "moderate", "mid"))
-    # 16-19: each class alone again, moderate, mid
+    # 8-10: each class alone again, moderate, mid
     rows += [([c], "moderate", "mid") for c in ALL_CLASSES]
-    # 20: all four again, sparse, close-up
+    # 11: all three together again, sparse, close-up
     rows.append((list(ALL_CLASSES), "sparse", "close-up"))
 
-    assert len(rows) == 20, f"expected 20 rows, got {len(rows)}"
+    expected = 2 * len(ALL_CLASSES) + len(list(combinations(ALL_CLASSES, 2))) + 2
+    assert len(rows) == expected, f"expected {expected} rows, got {len(rows)}"
     return rows
 
 

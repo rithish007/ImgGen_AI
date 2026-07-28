@@ -1,14 +1,17 @@
-"""Stage 0.5 / Stage 1 image generation on the RunPod RTX 5090.
+"""Stage 0.5 / Stage 1 image generation.
 
-Runs one manifest through one model. Never load both models at once - Klein base
-is ~29GB and SD3.5-Large ~26GB in bf16, which does not fit together on 32GB.
+Klein only. SD3.5 was dropped after the smoke-test comparison: it botched
+sea urchin spine anatomy (short blunt bumps rather than thin sharp spines,
+a real shape defect) and consistently shot every class as an isolated macro
+product photo rather than the wide-angle survey-camera framing this pipeline
+needs - Klein respected that framing and SD3.5 did not.
 
     # no GPU needed - check prompts before you pay for a pod
     python src/generate.py --model klein --manifest manifests/smoke.json --dry-run
 
     # on the pod
     python src/generate.py --model klein --manifest manifests/smoke.json
-    python src/generate.py --model sd35  --manifest manifests/pilot.json
+    python src/generate.py --model klein --manifest manifests/pilot.json
 
 Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/.
 """
@@ -18,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 from prompts import build_prompt
@@ -32,14 +36,6 @@ MODELS = {
         # negative_prompt. Exclusions are folded into the positive prompt.
         "supports_negative": False,
         "approx_vram_gb": 29,
-    },
-    "sd35": {
-        "repo": "stabilityai/stable-diffusion-3.5-large",
-        "pipeline": "StableDiffusion3Pipeline",
-        "steps": 32,
-        "guidance": 4.0,
-        "supports_negative": True,
-        "approx_vram_gb": 26,
     },
 }
 
@@ -111,12 +107,19 @@ def main() -> None:
     if args.dry_run:
         for row in rows:
             counts = {int(k): v for k, v in row["requested_counts"].items()}
-            prompt, negative = build_prompt(counts, row["framing"], cfg["supports_negative"])
+            prompt, negative, metadata = build_prompt(
+                counts,
+                seed=row["seed"],
+                density=row["density"],
+                framing=row["framing"],
+                supports_negative=cfg["supports_negative"],
+            )
             print(f"--- row {row['row']}  {row['image_id']}  seed={row['seed']}")
             print(f"    classes: {row['class_names']}  counts: {counts}")
             print(f"    prompt: {prompt}")
             if negative:
                 print(f"    negative: {negative}")
+            print(f"    metadata: {asdict(metadata)}")
             print()
         return
 
@@ -127,7 +130,13 @@ def main() -> None:
     durations: list[float] = []
     for row in rows:
         counts = {int(k): v for k, v in row["requested_counts"].items()}
-        prompt, negative = build_prompt(counts, row["framing"], cfg["supports_negative"])
+        prompt, negative, metadata = build_prompt(
+            counts,
+            seed=row["seed"],
+            density=row["density"],
+            framing=row["framing"],
+            supports_negative=cfg["supports_negative"],
+        )
         generator = torch.Generator(device="cpu").manual_seed(row["seed"])
 
         call_kwargs = dict(
@@ -168,6 +177,7 @@ def main() -> None:
                     "framing": row["framing"],
                     "cpu_offload": offloaded,
                     "seconds": round(elapsed, 2),
+                    "prompt_metadata": asdict(metadata),
                 },
                 indent=2,
             ),
