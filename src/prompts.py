@@ -45,9 +45,15 @@ ARRANGEMENTS: dict[int, str] = {
         "individuals resting alone, spread apart across the open sediment, each "
         "some distance from the others"
     ),
-    3: (  # scallop: loosely scattered, occasionally two or three close together near a rock
-        "individuals of varying sizes scattered at uneven spacing across the "
-        "sediment, a few resting close together near a rock"
+    3: (  # scallop: loosely scattered, well separated. v9 had "a few resting close
+          # together near a rock" here, which over-triggered a ~2 -> ~11 instance
+          # blowout - the only class of the four that overshot its requested count
+          # by more than one or two. The vague quantifier "a few" was read as an
+          # invitation to keep adding scallops; the fix is to remove it, not to
+          # rephrase it, since every other class lacks that clause and did not
+          # over-generate.
+        "individuals of varying sizes, sparsely and loosely scattered across the "
+        "open sediment, each well separated from the others"
     ),
 }
 
@@ -69,8 +75,15 @@ ARRANGEMENTS: dict[int, str] = {
 # diffusion models routinely embed a concept whether or not it is negated, so
 # "not a caterpillar, no legs" would likely still draw a caterpillar. The fix
 # is to give it a *correct* positive anchor instead: real holothurians read as
-# smooth, legless, slug-like cylinders, so "slug" does that work without ever
+# legless cylinders, avoiding the word entirely does that work without ever
 # naming the wrong animal.
+#
+# v9's "slug" anchor fixed the caterpillar problem but overcorrected: it
+# produced a straight, uniformly smooth, uniformly dark body. A real reference
+# photo (user-supplied) shows a curved, bent posture and mottled grey/black/
+# white blotchy skin with a rough warty granular texture - the opposite of
+# smooth and uniform. Rewritten directly from that reference. "Slug" dropped:
+# it was pulling toward smooth skin, which this reference shows is wrong.
 CLASSES: dict[int, dict[str, str]] = {
     0: {
         "duo_label": "starfish",
@@ -87,8 +100,8 @@ CLASSES: dict[int, dict[str, str]] = {
     2: {
         "duo_label": "holothurian",
         "short": "sea cucumber",
-        "singular": "a sea cucumber, a plump soft cylindrical body like a thick dark slug, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless on the sediment",
-        "plural": "{n} sea cucumbers, plump soft cylindrical bodies like thick dark slugs, smooth matte leathery skin, blunt rounded ends, lying elongated and motionless, {arrangement}",
+        "singular": "a sea cucumber, an elongated cylindrical body gently curved and bent like a hook, mottled grey-black-and-white blotchy skin with a rough warty granular texture, blunt rounded ends, lying motionless on the sand",
+        "plural": "{n} sea cucumbers, elongated cylindrical bodies gently curved and bent like hooks, mottled grey-black-and-white blotchy skin with a rough warty granular texture, blunt rounded ends, lying motionless, {arrangement}",
     },
     3: {
         "duo_label": "scallop",
