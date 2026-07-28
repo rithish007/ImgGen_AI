@@ -1,261 +1,1262 @@
-"""Prompt construction for Stage 0.5 / Stage 1 generation.
+"""
+prompt.py
+=========
+Prompt engine for AI-generated underwater synthetic datasets.
 
-Three things this module exists to get right:
+Purpose
+-------
+Generate scalable, varied prompts for photorealistic underwater robotic
+survey imagery intended for object-detection dataset creation.
 
-1. Class phrasing. DUO's taxonomic labels (echinus, holothurian) are rare in
-   web image-caption data, so they are used for class_id mapping only and never
-   sent to a generator or detector. And bare "scallop"/"sea cucumber" resolve to
-   the culinary sense, so the phrases below force the habitat sense.
+Target classes
+--------------
+Class IDs are kept fixed:
 
-2. Negative prompts. Flux2KleinPipeline accepts no text-level negative_prompt
-   (only negative_prompt_embeds); StableDiffusion3Pipeline does. Rather than let
-   the negative silently no-op on Klein, exclusions are folded into the positive
-   prompt affirmatively for models that cannot take a negative.
+    0 -> starfish
+    1 -> echinus / sea urchin
+    2 -> scallop
 
-3. Composition. Stage 0.5 smoke-test output (v6) came back with animals staged
-   like product photography - centered, evenly lit - and multi-instance counts
-   rendered as near-identical clones at regular spacing rather than naturally
-   scattered individuals. Both are textbook diffusion failure modes: "evenly
-   lit" / "colour-accurate" read as studio-photography language, and a bare
-   "N of X" count gets resolved by tiling the same rendering. COMPOSITION and
-   SCATTER_CUE below exist specifically to counter these two failures.
+NOTE: sea cucumber (DUO's holothurian, originally class 2) was removed after
+repeated generation failures, and scallop was renumbered 3 -> 2 to keep IDs
+contiguous for YOLO training (a gap at 2 either breaks training config or
+wastes a class slot). This is now a DUO-DERIVED 3-CLASS SUBSET, not an exact
+DUO match - a class_id of 2 here means scallop, not DUO's holothurian. Note
+this explicitly in anything that compares results back to DUO.
+
+Design philosophy
+-----------------
+Stage 1 should create:
+    - ecological diversity
+    - object morphology diversity
+    - scene composition diversity
+    - camera diversity
+    - object-scale diversity
+    - occlusion/clutter diversity
+
+Stage 2 / domain randomization should primarily manipulate:
+    - water colour
+    - turbidity
+    - suspended particles
+    - contrast
+    - haze
+    - optical attenuation
+    - sensor characteristics
+
+Do NOT rely on the generator to create one particular "beautiful underwater
+photography" aesthetic. The target distribution is underwater robotic survey
+imagery.
+
+The module supports:
+    - deterministic random generation
+    - parameterized prompt construction
+    - models with negative-prompt support
+    - models without negative-prompt support
+    - metadata export for dataset manifests
 """
 
 from __future__ import annotations
 
-# Per-class spatial arrangement, appended whenever more than one instance is
-# requested. Originally a single global SCATTER_CUE ("unevenly spaced, some
-# distance from the others") applied to every class alike - that fixed the
-# v6 clone-at-regular-spacing problem, but it is biologically wrong for
-# species that naturally aggregate. Real DUO reference photos (user-supplied)
-# show sea urchins wedged tightly into rock crevices, several individuals
-# touching or overlapping - the opposite of "spaced apart". Applying one
-# spacing rule to all four classes was the bug; arrangement is now per-class.
-ARRANGEMENTS: dict[int, str] = {
-    0: (  # starfish: solitary, camouflaged against rock/algae (v10 - was "open
-          # sediment", which fought against the CLASSES entry's "blending into
-          # rock and algae" and pulled the substrate back toward open sand)
-        "individuals of varying sizes and orientations, scattered among rocks and "
-        "patches of algae some distance apart from each other, unevenly spaced"
-    ),
-    1: (  # sea urchin: aggregates in crevices and rock faces - matches DUO reference photos
-        "clustered tightly together in a rocky crevice or wedged against a rock "
-        "face, several individuals touching or overlapping one another, packed "
-        "into the gap between rocks rather than spaced apart"
-    ),
-    2: (  # sea cucumber: solitary, spread across open sediment
-        "individuals resting alone, spread apart across the open sediment, each "
-        "some distance from the others"
-    ),
-    3: (  # scallop: loosely scattered, well separated. v9 had "a few resting close
-          # together near a rock" here, which over-triggered a ~2 -> ~11 instance
-          # blowout - the only class of the four that overshot its requested count
-          # by more than one or two. The vague quantifier "a few" was read as an
-          # invitation to keep adding scallops; the fix is to remove it, not to
-          # rephrase it, since every other class lacks that clause and did not
-          # over-generate.
-        "individuals of varying sizes, sparsely and loosely scattered across the "
-        "open sediment, each well separated from the others"
-    ),
-}
+import random
+from dataclasses import dataclass, asdict
+from typing import Optional
 
-# class_id matches DUO exactly. Do not renumber.
-#
-# Phrasing is morphological rather than nominal. Naming the animal alone pulls
-# the model toward the most photographed sense of the word, which for two of
-# these four classes is a seafood dish. Describing the body - shape, texture,
-# colour, posture on the substrate - anchors it to the live animal instead.
-#
-# The scallop entry must NOT say "shell open": the v7 smoke test rendered that
-# as cooked scallop meat presented in open shells. Live scallops in survey
-# imagery are closed or barely gaped and usually partly buried, with only the
-# ribbed upper valve showing.
-#
-# The sea cucumber entry avoids ANY word that names the wrong anatomy, even
-# negated. v8's "elongated leathery body with blunt conical papillae" rendered
-# as a toy caterpillar/millipede with neat symmetric rows of leg-like cones -
-# diffusion models routinely embed a concept whether or not it is negated, so
-# "not a caterpillar, no legs" would likely still draw a caterpillar. The fix
-# is to give it a *correct* positive anchor instead: real holothurians read as
-# legless cylinders, avoiding the word entirely does that work without ever
-# naming the wrong animal.
-#
-# v9's "slug" anchor fixed the caterpillar problem but overcorrected: it
-# produced a straight, uniformly smooth, uniformly dark body. A real reference
-# photo (user-supplied) shows a curved, bent posture and mottled grey/black/
-# white blotchy skin with a rough warty granular texture - the opposite of
-# smooth and uniform. Rewritten directly from that reference. "Slug" dropped:
-# it was pulling toward smooth skin, which this reference shows is wrong.
-CLASSES: dict[int, dict[str, str]] = {
+
+# ============================================================================
+# CLASS DEFINITIONS
+# ============================================================================
+
+# IMPORTANT:
+# Do not renumber these IDs. They should remain consistent with the dataset
+# annotation pipeline.
+
+CLASSES: dict[int, dict[str, object]] = {
+
     0: {
         "duo_label": "starfish",
         "short": "starfish",
-        # v9 rendered starfish large, crisp and centered on open light sand -
-        # visually a "hero shot", clearly the dominant subject. A real DUO
-        # reference photo (user-supplied) shows starfish as small, low-contrast,
-        # camouflaged blobs blending into rock and algae - easy for even a human
-        # annotator to miss. That's not a colour-cast difference (Stage 3's job),
-        # it's a Stage 1 framing/substrate choice: making the subject always
-        # large, sharp and prominent teaches Stage 2 annotation an easier task
-        # than the real detector will face on real footage.
-        "singular": "a small five-armed starfish, mottled brown and grey blending into the surrounding rock and algae, camouflaged and easy to overlook, resting flat against the substrate",
-        "plural": "{n} small five-armed starfish, mottled brown and grey blending into the surrounding rock and algae, camouflaged and easy to overlook, resting flat against the substrate, {arrangement}",
+
+        "morphology": [
+            (
+                "a small living starfish with five arms, "
+                "mottled brown and grey coloration, "
+                "rough natural surface texture"
+            ),
+            (
+                "a small five-armed starfish with muted brown-grey coloration, "
+                "irregular darker patches and a rough textured surface"
+            ),
+            (
+                "a small five-armed starfish with dark brown and grey mottling, "
+                "subtle natural colour variation and irregular arm proportions"
+            ),
+            (
+                "a small starfish with five broad arms, "
+                "muted reddish-brown and grey coloration, "
+                "natural irregular surface texture"
+            ),
+            (
+                "a small dark brown-grey starfish with five arms, "
+                "subtle blotchy markings and a naturally rough surface"
+            ),
+        ],
+
+        "arrangements": [
+            (
+                "resting flat against rock and algae, partially blending into "
+                "the substrate"
+            ),
+            (
+                "resting beside a low rock ledge with portions of the body "
+                "partially obscured"
+            ),
+            (
+                "lying on mixed sediment near patches of algae, naturally "
+                "camouflaged against the seabed"
+            ),
+            (
+                "partially covered by fine sediment and resting against an "
+                "irregular rock"
+            ),
+        ],
     },
+
     1: {
         "duo_label": "echinus",
         "short": "sea urchin",
-        # v9's "round test" rendered as ball-shaped/spherical. User feedback:
-        # too round, needs a flattened dome shape, and darker colour.
-        "singular": "a very dark, almost black sea urchin, a flattened dome-shaped test low and wide rather than spherical, covered in short dense spines, sitting on the bottom",
-        "plural": "{n} very dark, almost black sea urchins, flattened dome-shaped tests low and wide rather than spherical, covered in short dense spines, {arrangement}",
+
+        "morphology": [
+            (
+                "a living sea urchin with a low flattened dome-shaped body, "
+                "dense short spines and very dark brown-black coloration"
+            ),
+            (
+                "a dark grey-black sea urchin with a broad flattened dome-shaped "
+                "body and dense short spines"
+            ),
+            (
+                "a nearly black sea urchin with a low wide body, "
+                "dense short dark spines and subtle natural surface variation"
+            ),
+            (
+                "a dark brown sea urchin with a flattened low dome-shaped body "
+                "and dense short spines"
+            ),
+        ],
+
+        "arrangements": [
+            (
+                "clustered naturally inside a rocky crevice, with several "
+                "individuals touching or partially overlapping"
+            ),
+            (
+                "wedged tightly against a rock face inside a shallow crevice, "
+                "with individuals at slightly different depths"
+            ),
+            (
+                "grouped irregularly along a rocky ledge, with some individuals "
+                "partially hidden behind rocks"
+            ),
+        ],
     },
+
     2: {
-        "duo_label": "holothurian",
-        "short": "sea cucumber",
-        "singular": "a sea cucumber, an elongated cylindrical body gently curved and bent like a hook, mottled grey-black-and-white blotchy skin with a rough warty granular texture, blunt rounded ends, lying motionless on the sand",
-        "plural": "{n} sea cucumbers, elongated cylindrical bodies gently curved and bent like hooks, mottled grey-black-and-white blotchy skin with a rough warty granular texture, blunt rounded ends, lying motionless, {arrangement}",
-    },
-    3: {
+        # Renumbered from 3. Was DUO class_id 3; sea cucumber (DUO class_id 2,
+        # "holothurian") was removed entirely after repeated generation
+        # failures, so this ID shifted down to keep class IDs contiguous.
         "duo_label": "scallop",
         "short": "scallop",
-        "singular": "a scallop, a fan-shaped shell with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried in the sediment",
-        "plural": "{n} scallops, fan-shaped shells with radiating ribs, mostly closed with a thin sliver of pale living tissue and tiny tentacles visible at the shell's edge, half-buried, {arrangement}",
+
+        "morphology": [
+            (
+                "a living scallop with a fan-shaped shell and clearly visible "
+                "radiating ribs, mostly closed with only a narrow edge of pale "
+                "living tissue visible"
+            ),
+            (
+                "a living fan-shaped scallop shell with strong radial ribs, "
+                "mostly closed and partially buried in sediment"
+            ),
+            (
+                "a small living scallop with a ribbed fan-shaped shell, "
+                "mostly closed and naturally covered by a thin layer of sediment"
+            ),
+            (
+                "a living scallop with a textured fan-shaped ribbed shell, "
+                "partially buried so that only part of the shell is exposed"
+            ),
+        ],
+
+        "arrangements": [
+            (
+                "sparsely scattered across open sediment, with substantial "
+                "irregular spacing between individuals"
+            ),
+            (
+                "loosely distributed across sand and gravel, with individuals "
+                "at different distances from the camera"
+            ),
+            (
+                "partially buried at irregular locations across the seabed"
+            ),
+        ],
     },
 }
 
-# Matches DUO's actual habitat: temperate Chinese coastal seabed - sand, gravel
-# and scattered rock. NOT tropical reef. The v7 smoke test used "shallow
-# tropical reef flat", which produced coral heads and tropical species and put
-# the whole pilot in the wrong domain before Stage 3 even ran.
+
+# ============================================================================
+# SCENE / ENVIRONMENT
+# ============================================================================
+
+SCENE_TEMPLATES = [
+
+    (
+        "temperate coastal seabed with a natural mixture of fine sand, "
+        "coarse sediment, small gravel and irregular rocks, shallow depressions, "
+        "low rocky ledges and occasional crevices"
+    ),
+
+    (
+        "temperate coastal benthic habitat consisting of sandy sediment mixed "
+        "with gravel and scattered irregular rocks, small depressions and "
+        "natural rocky formations"
+    ),
+
+    (
+        "natural temperate coastal seafloor with patches of fine sediment "
+        "between scattered rocks, gravel, shallow grooves and small rocky "
+        "crevices"
+    ),
+
+    (
+        "mixed temperate marine substrate containing sand, gravel, small stones "
+        "and irregular rocky patches with shallow crevices and uneven seabed "
+        "topography"
+    ),
+
+    (
+        "natural coastal seabed with exposed sandy areas, scattered rocks, "
+        "small gravel deposits, shallow sediment depressions and irregular "
+        "rock ledges"
+    ),
+]
+
+
+ALGAE_VARIATIONS = [
+
+    "sparse patches of natural turf algae attached to rocks",
+
+    "small irregular patches of low algae growing across rocky surfaces",
+
+    "sparse dark green and brown algae mixed with biological encrustation",
+
+    "low natural algae and subtle biological growth attached to rocks",
+
+    "small irregular algae-covered areas interspersed between exposed rock",
+]
+
+
+SUBSTRATE_VARIATIONS = [
+
+    "subtle variation in sediment grain size and density",
+
+    "fine sediment accumulating naturally around rocks",
+
+    "small gravel mixed irregularly with fine sand",
+
+    "patches of exposed rock surrounded by fine sediment",
+
+    "slightly uneven sediment with small stones and natural debris",
+]
+
+
+# ============================================================================
+# ECOLOGICAL / COMPOSITIONAL CONDITIONS
+# ============================================================================
+
+SCENE_DENSITIES = {
+
+    "sparse": (
+        "relatively open seabed with substantial exposed sediment between "
+        "target objects and limited biological clutter"
+    ),
+
+    "moderate": (
+        "moderately cluttered seabed with natural rocks, algae, sediment and "
+        "target objects distributed across foreground and middle ground"
+    ),
+
+    "dense": (
+        "visually cluttered natural seabed containing rocks, algae, gravel, "
+        "sediment and overlapping environmental features, while maintaining "
+        "realistic ecological structure"
+    ),
+}
+
+
+DETECTION_DIFFICULTY = {
+
+    "easy": (
+        "target objects are mostly visible, with limited occlusion and "
+        "moderate contrast against the surrounding substrate"
+    ),
+
+    "moderate": (
+        "some target objects are partially obscured by rocks, algae or "
+        "sediment, with moderate natural contrast and varying object sizes"
+    ),
+
+    "hard": (
+        "several target objects are small or partially obscured by rocks, "
+        "algae or sediment, with some objects naturally blending into the "
+        "substrate and reduced contrast at greater distances"
+    ),
+}
+
+
+# ============================================================================
+# WATER CONDITIONS
+# ============================================================================
 #
-# Lighting is deliberately understated. v7 used "sun caustics rippling across
-# the sandy seabed" and every image came back with a hard-edged white polygonal
-# web across the sand, like a Voronoi diagram drawn in marker pen. Real caustics
-# in survey imagery are low-contrast brightness variation, not white lines - so
-# they are described softly here and the failure mode is pushed into NEGATIVE.
+# This used to be a randomly-chosen dict (clear / moderately_turbid / turbid /
+# green_coastal / blue_coastal) injecting turbidity and colour-cast language
+# directly into the Stage 1 prompt. That reopens the exact double-degradation
+# bug fixed several rounds ago: Stage 3 (Akkaynak-Treibitz + Jerlov physics)
+# needs clean scene radiance as its input. If Stage 1 already renders murk or
+# a green cast, Stage 3 applies real optical physics on top of an image that
+# is already degraded, and the two effects compound in a way that does not
+# match any real water type. Water condition is Stage 3's job, full stop -
+# Stage 1 always renders clear and colour-neutral. Kept as a single fixed
+# phrase rather than a dict so there is no random selection to accidentally
+# re-enable.
+SCENE_WATER_PHRASE = (
+    "clear seawater with good visibility, true-to-life natural colour and no "
+    "artificial colour cast"
+)
+
+
+# ============================================================================
+# LIGHTING CONDITIONS
+# ============================================================================
+
+LIGHTING_CONDITIONS = [
+
+    (
+        "natural underwater illumination from the surface, diffuse sunlight "
+        "attenuated through the water column, soft uneven brightness across "
+        "the seabed and subtle natural shadows"
+    ),
+
+    (
+        "soft diffuse daylight filtered through the water column, with gentle "
+        "brightness variation across the seabed and low-contrast natural shadows"
+    ),
+
+    (
+        "natural daylight from above the water surface with realistic underwater "
+        "attenuation, soft illumination and subtle directional brightness changes"
+    ),
+
+    (
+        "weak diffuse underwater daylight with realistic attenuation and "
+        "slightly uneven illumination across rocks and sediment"
+    ),
+]
+
+
+# ============================================================================
+# CAMERA CONDITIONS
+# ============================================================================
+
+CAMERA_HEIGHTS = {
+
+    "low": (
+        "camera approximately 0.5 metres above the seabed, looking slightly "
+        "downward"
+    ),
+
+    "medium": (
+        "camera approximately 1 metre above the seabed, looking slightly "
+        "downward"
+    ),
+
+    "high": (
+        "camera approximately 1.5 to 2 metres above the seabed, looking "
+        "downward across the survey area"
+    ),
+}
+
+
+CAMERA_FOV = [
+
+    "moderately wide-angle field of view",
+
+    "wide-angle underwater field of view",
+
+    "natural wide field of view typical of a compact underwater survey camera",
+]
+
+
+CAMERA_MOTION = [
+
+    "slight natural motion softness consistent with a moving underwater robot",
+
+    "very mild motion blur consistent with slow robotic survey movement",
+
+    "minimal motion softness from a forward-moving underwater camera",
+
+    "stable robotic survey capture with only subtle sensor and motion effects",
+]
+
+
+# ============================================================================
+# IMAGING / SENSOR CONDITIONS
+# ============================================================================
+
+IMAGING_CONDITIONS = [
+
+    (
+        "realistic underwater camera exposure, subtle sensor noise, "
+        "natural optical response and mild reduction of fine detail with distance"
+    ),
+
+    (
+        "realistic compact underwater camera characteristics, subtle image "
+        "noise, natural exposure variation and mild distant detail loss"
+    ),
+
+    (
+        "realistic digital underwater camera imagery with fine sensor noise, "
+        "natural exposure and subtle loss of contrast with increasing distance"
+    ),
+
+    (
+        "natural robotic-camera image characteristics with subtle sensor noise, "
+        "realistic exposure and restrained optical softness"
+    ),
+]
+
+
+# ============================================================================
+# COMPOSITION
+# ============================================================================
+
+COMPOSITIONS = [
+
+    (
+        "candid marine survey photograph, documentary observation style, "
+        "off-centre asymmetric framing and natural unposed composition"
+    ),
+
+    (
+        "underwater robotic survey image, irregular asymmetric composition, "
+        "natural spatial distribution of objects across the frame"
+    ),
+
+    (
+        "unposed benthic survey image with foreground, middle-ground and "
+        "background depth, natural off-centre framing"
+    ),
+
+    (
+        "documentary-style underwater survey frame with no deliberate hero "
+        "subject, natural ecological composition and uneven spatial distribution"
+    ),
+]
+
+
+# ============================================================================
+# OCCLUSION / DEPTH
+# ============================================================================
+
+DEPTH_DISTRIBUTIONS = [
+
+    (
+        "target objects occur at different distances from the camera, including "
+        "foreground, middle-ground and background instances"
+    ),
+
+    (
+        "objects have varied apparent sizes because of different distances "
+        "from the camera"
+    ),
+
+    (
+        "some objects are close to the camera while others are smaller and "
+        "farther away in the scene"
+    ),
+]
+
+
+# ============================================================================
+# NEGATIVE PROMPTS
+# ============================================================================
+
+GLOBAL_NEGATIVE = (
+    "text, watermark, logo, caption, human, diver, boat, submarine, "
+    "water surface, sky, aquarium, fish tank, glass enclosure, "
+    "tropical reef, coral reef, tropical fish, anemone, "
+    "illustration, painting, drawing, cartoon, CGI, 3D render, "
+    "artificial environment, studio photography, product photography, "
+    "catalog photography, stock photography, cinematic underwater scene, "
+    "dramatic spotlight, dramatic volumetric lighting"
+)
+
+
+COMPOSITION_NEGATIVE = (
+    "centered subject, symmetrical composition, staged arrangement, "
+    "posed wildlife, hero shot, isolated specimen, repeated objects, "
+    "identical copies, cloned objects, grid arrangement, regular spacing, "
+    "repeating pattern, artificial pattern, decorative arrangement"
+)
+
+
+OPTICAL_NEGATIVE = (
+    "fisheye circle, circular distortion, circular vignette, black corners, "
+    "black border, strong lens flare, excessive bloom, exaggerated light rays, "
+    "hard-edged caustics, white geometric caustic patterns, polygonal light "
+    "patterns, Voronoi patterns, artificial water texture"
+)
+
+
+BIOLOGICAL_NEGATIVE = (
+    "cooked food, seafood dish, restaurant presentation, plate, kitchen, "
+    "sashimi, cooked scallop meat, empty shell, dead shell, beach shell, "
+    "shell litter, caterpillar, millipede, centipede, insect legs, larva, "
+    "segmented insect body, articulated legs"
+)
+
+
+NEGATIVE = ", ".join(
+    [
+        GLOBAL_NEGATIVE,
+        COMPOSITION_NEGATIVE,
+        OPTICAL_NEGATIVE,
+        BIOLOGICAL_NEGATIVE,
+    ]
+)
+
+
+# ============================================================================
+# POSITIVE GUARDS
+# ============================================================================
 #
-# Rock crevices and turf-covered ledges are named explicitly (v9) because the
-# sea urchin ARRANGEMENT above asks it to wedge into one - without a crevice in
-# the scene description, there is nothing for it to cluster into. Still says
-# "clear water, natural colour" deliberately: the green/murky look in real DUO
-# footage is Stage 3's job (Jerlov physics transform on a clean scene), not
-# something to bake in here - see the Stage 3 section of the plan for why.
-SCENE = (
-    "underwater photograph, temperate coastal seabed, mixed sand and rocky bottom "
-    "with crevices, ledges, and ridges, patches of turf algae and encrustation on "
-    "the rock surfaces, soft diffuse daylight from above, gentle low-contrast "
-    "variation in brightness across the bottom, clear water, good visibility, "
-    "natural colour, neutral white balance"
-)
+# These are used when the model does not support a negative prompt.
 
-# Counters the "product photo" staging seen in the v6 smoke test: centered
-# subject, symmetrical arrangement, even studio-style lighting. Framed as a
-# candid documentary/survey photograph, since that is the training-data
-# distribution that actually contains off-center, naturally-lit wildlife shots.
-COMPOSITION = (
-    "candid marine survey photograph, documentary style, off-center asymmetric "
-    "framing, natural unposed arrangement, not a product photo, not staged, "
-    "not centered, not symmetrical"
-)
-
-# "slight fisheye distortion" was removed after v7: it was applied as a full
-# circular fisheye, leaving a black vignette ring around the frame. That is
-# fatal for this pipeline - the black corners survive the Stage 4 640x640 crop
-# and would be baked into the dataset as fake image content.
-CAMERA = "wide-angle underwater survey camera, photorealistic, sharp focus"
-
-NEGATIVE = (
-    "text, watermark, diver, boat, human, water surface, sky, "
-    "green tint, murky, hazy, low visibility, colour cast, dark, "
-    "aquarium, fish tank, glass, white background, studio, "
-    "illustration, drawing, cartoon, 3d render, "
-    "product photo, stock photo, catalog photo, studio lighting, "
-    "centered composition, symmetrical, posed, staged, "
-    "cloned, duplicated, identical copies, grid pattern, repeating pattern, "
-    # v7 failures, in priority order
-    "caustics, light caustics, white lines on sand, polygonal light pattern, "
-    "voronoi pattern, cracked pattern, net pattern, "
-    "fisheye, circular vignette, black border, black corners, vignetting, "
-    "coral reef, coral, tropical fish, anemone, "
-    "cooked, food, seafood dish, plate, restaurant, sashimi, open shell, shellfish meat, "
-    # v8 failures: sea cucumber rendered as a caterpillar/millipede, scallop
-    # shells read as empty/dead. SD3.5 has real negative-prompt suppression,
-    # unlike Klein, so these terms only help here.
-    "caterpillar, millipede, centipede, larva, insect legs, "
-    "segmented body, articulated legs, rows of legs, worm with legs, "
-    "empty shell, dead shell, beachcombed shell, shell litter, bleached shell"
-)
-
-# Affirmative restatement of NEGATIVE, for pipelines with no negative_prompt.
-# Deliberately avoids "evenly lit" / "colour-accurate" - both read as studio-
-# photography language and contributed to the v6 staged-product-shot look.
 POSITIVE_ONLY_GUARDS = (
-    "true-to-life colour, no artificial colour grading, "
-    "soft even ambient light with no harsh highlights on the sand, "
-    "full rectangular frame, no lens vignette, "
-    "open natural habitat, unobstructed view of the seafloor"
+    "true-to-life natural colour reproduction, realistic biological morphology, "
+    "natural ecological habitat, full rectangular frame, no lens vignette, "
+    "no artificial colour grading, realistic underwater camera imagery, "
+    "natural irregular spatial distribution"
 )
+
+
+# ============================================================================
+# FRAMING
+# ============================================================================
 
 FRAMING = {
-    "close-up": "close-up shot, camera low near the seafloor",
-    "mid": "mid-distance shot, seafloor receding into the background",
+    # Key is "close-up", not "close" - build_manifest.py's existing manifest
+    # rows already use "close-up"/"mid" (from the original combinatorial pilot
+    # design); renaming the dict key to match rather than regenerating every
+    # manifest.
+    "close-up": (
+        "close survey framing, camera relatively near the seabed with several "
+        "target objects visible at different distances"
+    ),
+
+    "mid": (
+        "mid-distance survey framing, camera looking across the seabed with "
+        "foreground and middle-ground objects"
+    ),
+
+    "wide": (
+        "wide survey framing showing a larger section of seabed, with target "
+        "objects distributed across different depths"
+    ),
 }
 
-DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6)}
 
-_NUMBER_WORDS = {
-    1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-    6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
+# ============================================================================
+# OBJECT COUNT RANGES
+# ============================================================================
+#
+# Counts are selected by the prompt generator.
+#
+# These ranges intentionally prevent every image from having identical object
+# counts. The generator should record the selected count in the manifest.
+
+COUNT_RANGES = {
+
+    0: {
+        "sparse": (1, 2),
+        "moderate": (1, 3),
+        "dense": (2, 4),
+    },
+
+    1: {
+        "sparse": (1, 2),
+        "moderate": (2, 4),
+        "dense": (3, 6),
+    },
+
+    2: {  # scallop, renumbered from 3 - sea cucumber (was 2) removed entirely
+        "sparse": (1, 2),
+        "moderate": (2, 4),
+        "dense": (3, 6),
+    },
 }
 
 
-def _count_word(n: int) -> str:
-    return _NUMBER_WORDS.get(n, str(n))
+# ============================================================================
+# DATA STRUCTURES
+# ============================================================================
+
+@dataclass
+class PromptMetadata:
+    """
+    Metadata describing the synthetic scene requested by the prompt.
+
+    This should be stored alongside the generated image.
+
+    It is useful later for:
+        - dataset auditing
+        - train/validation splitting
+        - reproducibility
+        - domain-randomization analysis
+        - dissertation methodology
+    """
+
+    seed: int
+
+    density: str
+    difficulty: str
+
+    camera_height: str
+    framing: str
+
+    class_counts: dict[int, int]
+
+    scene_template_index: int
+    algae_variation_index: int
+    substrate_variation_index: int
+    lighting_index: int
+    composition_index: int
+    camera_fov_index: int
+    camera_motion_index: int
+    imaging_index: int
 
 
-def class_phrase(class_id: int, count: int) -> str:
+# ============================================================================
+# RANDOM HELPERS
+# ============================================================================
+
+def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
+    """
+    Select one item and return both its value and index.
+    """
+    index = rng.randrange(len(values))
+    return values[index], index
+
+
+def _random_count(
+    rng: random.Random,
+    class_id: int,
+    density: str,
+) -> int:
+    """
+    Generate a random instance count for a class.
+    """
+    low, high = COUNT_RANGES[class_id][density]
+    return rng.randint(low, high)
+
+
+# ============================================================================
+# CLASS PHRASE GENERATION
+# ============================================================================
+
+def class_phrase(
+    class_id: int,
+    count: int,
+    rng: random.Random,
+) -> str:
+    """
+    Build a class description for the requested number of instances.
+
+    The generator intentionally uses morphological descriptions rather than
+    relying only on taxonomic names.
+    """
+
     entry = CLASSES[class_id]
-    if count == 1:
-        return entry["singular"]
-    return entry["plural"].format(n=_count_word(count), arrangement=ARRANGEMENTS[class_id])
 
+    morphology = rng.choice(entry["morphology"])
+    arrangement = rng.choice(entry["arrangements"])
+
+    if count == 1:
+        quantity = "one"
+    else:
+        quantity = f"{count}"
+
+    if count == 1:
+        return (
+            f"{morphology}, {arrangement}"
+        )
+
+    # We explicitly tell the generator that these are separate individuals.
+    # Was morphology.replace('a ', '').replace('an ', ''), which strips EVERY
+    # occurrence of "a "/"an " in the string, not just the leading article -
+    # e.g. "a living sea urchin with a low flattened..." also loses the "a"
+    # in "with a low", producing "with low flattened...". _drop_leading_article
+    # only touches the front of the string.
+    return (
+        f"{quantity} separate living {entry['short']} individuals, "
+        f"each showing {_drop_leading_article(morphology)}, "
+        f"{arrangement}"
+    )
+
+
+def _drop_leading_article(text: str) -> str:
+    """Strip only a genuine leading 'a ' or 'an ', not every occurrence."""
+    for article in ("an ", "a "):
+        if text.startswith(article):
+            return text[len(article):]
+    return text
+
+
+# ============================================================================
+# SCENE OBJECT GENERATION
+# ============================================================================
+
+def generate_class_counts(
+    rng: random.Random,
+    density: str,
+    min_classes: int = 2,
+    max_classes: int = 4,
+) -> dict[int, int]:
+    """
+    Randomly select which target classes appear in a scene and how many
+    instances of each are requested.
+
+    Default:
+        2 to 4 classes per scene.
+
+    This is important because every generated frame does not need to contain
+    every target class.
+    """
+
+    available = list(CLASSES.keys())
+
+    number_of_classes = rng.randint(
+        min_classes,
+        min(max_classes, len(available)),
+    )
+
+    selected = rng.sample(available, number_of_classes)
+
+    return {
+        class_id: _random_count(rng, class_id, density)
+        for class_id in sorted(selected)
+    }
+
+
+# ============================================================================
+# PROMPT BUILDER
+# ============================================================================
 
 def build_prompt(
     counts: dict[int, int],
-    framing: str,
-    supports_negative: bool,
-) -> tuple[str, str | None]:
-    """Build (prompt, negative_prompt) for one manifest row.
-
-    counts maps class_id -> requested instance count. Returns negative_prompt
-    of None for pipelines that cannot take one, with the exclusions folded into
-    the positive prompt instead.
+    *,
+    seed: int = 0,
+    density: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    camera_height: Optional[str] = None,
+    framing: Optional[str] = None,
+    supports_negative: bool = True,
+) -> tuple[str, Optional[str], PromptMetadata]:
     """
+    Construct a complete underwater survey image-generation prompt.
+
+    Parameters
+    ----------
+    counts:
+        Dictionary mapping class IDs to requested instance counts.
+
+    seed:
+        Random seed controlling all stochastic prompt choices.
+
+    density:
+        "sparse", "moderate", or "dense".
+
+    difficulty:
+        "easy", "moderate", or "hard".
+
+    camera_height:
+        "low", "medium", or "high".
+
+    framing:
+        "close", "mid", or "wide".
+
+    supports_negative:
+        True if the image model accepts a normal negative_prompt.
+        False if exclusions need to be embedded into the positive prompt.
+
+    Returns
+    -------
+    prompt:
+        Positive generation prompt.
+
+    negative_prompt:
+        Negative prompt, or None for models without negative-prompt support.
+
+    metadata:
+        PromptMetadata object describing the generated scene.
+    """
+
+    rng = random.Random(seed)
+
+    # ------------------------------------------------------------------
+    # Validate / randomly choose high-level parameters
+    # ------------------------------------------------------------------
+
+    if density is None:
+        density = rng.choice(list(SCENE_DENSITIES.keys()))
+
+    if density not in SCENE_DENSITIES:
+        raise ValueError(
+            f"Invalid density {density!r}. "
+            f"Expected one of {list(SCENE_DENSITIES)}"
+        )
+
+    if difficulty is None:
+        difficulty = rng.choice(list(DETECTION_DIFFICULTY.keys()))
+
+    if difficulty not in DETECTION_DIFFICULTY:
+        raise ValueError(
+            f"Invalid difficulty {difficulty!r}. "
+            f"Expected one of {list(DETECTION_DIFFICULTY)}"
+        )
+
+    if camera_height is None:
+        camera_height = rng.choice(list(CAMERA_HEIGHTS.keys()))
+
+    if camera_height not in CAMERA_HEIGHTS:
+        raise ValueError(
+            f"Invalid camera height {camera_height!r}. "
+            f"Expected one of {list(CAMERA_HEIGHTS)}"
+        )
+
+    if framing is None:
+        framing = rng.choice(list(FRAMING.keys()))
+
     if framing not in FRAMING:
-        raise ValueError(f"unknown framing {framing!r}, expected one of {list(FRAMING)}")
+        raise ValueError(
+            f"Invalid framing {framing!r}. "
+            f"Expected one of {list(FRAMING)}"
+        )
 
-    subjects = [class_phrase(cid, counts[cid]) for cid in sorted(counts)]
-    if len(subjects) == 1:
-        subject_text = subjects[0]
+    # ------------------------------------------------------------------
+    # Select scene components
+    # ------------------------------------------------------------------
+
+    scene_template, scene_idx = _choose(rng, SCENE_TEMPLATES)
+
+    algae, algae_idx = _choose(rng, ALGAE_VARIATIONS)
+
+    substrate, substrate_idx = _choose(rng, SUBSTRATE_VARIATIONS)
+
+    lighting, lighting_idx = _choose(rng, LIGHTING_CONDITIONS)
+
+    composition, composition_idx = _choose(rng, COMPOSITIONS)
+
+    camera_fov, camera_fov_idx = _choose(rng, CAMERA_FOV)
+
+    camera_motion, camera_motion_idx = _choose(rng, CAMERA_MOTION)
+
+    imaging, imaging_idx = _choose(rng, IMAGING_CONDITIONS)
+
+    # ------------------------------------------------------------------
+    # Build class descriptions
+    # ------------------------------------------------------------------
+
+    subject_phrases = []
+
+    for class_id in sorted(counts):
+
+        if class_id not in CLASSES:
+            raise ValueError(
+                f"Unknown class ID {class_id}. "
+                f"Expected IDs: {list(CLASSES)}"
+            )
+
+        count = counts[class_id]
+
+        if count < 1:
+            raise ValueError(
+                f"Class {class_id} has invalid count {count}. "
+                "Counts must be >= 1."
+            )
+
+        subject_phrases.append(
+            class_phrase(
+                class_id=class_id,
+                count=count,
+                rng=rng,
+            )
+        )
+
+    if len(subject_phrases) == 1:
+        subjects = subject_phrases[0]
+    elif len(subject_phrases) == 2:
+        subjects = f"{subject_phrases[0]} and {subject_phrases[1]}"
     else:
-        subject_text = ", ".join(subjects[:-1]) + " and " + subjects[-1]
+        subjects = (
+            ", ".join(subject_phrases[:-1])
+            + ", and "
+            + subject_phrases[-1]
+        )
 
-    # COMPOSITION is placed before the subject deliberately: with a causal
-    # text encoder (e.g. Klein's Mistral-based one), earlier tokens have more
-    # influence over global layout, later tokens over local detail. Stating
-    # "off-center, unposed documentary style" before naming the subject count
-    # gives it priority over the staged/centered look that a bare "N of X"
-    # count otherwise defaults to.
-    parts = [SCENE, COMPOSITION, subject_text, FRAMING[framing], CAMERA]
+    # ------------------------------------------------------------------
+    # Compose the final prompt
+    # ------------------------------------------------------------------
+    #
+    # Global composition comes before detailed subjects so the model is
+    # encouraged to establish a survey frame before rendering individual
+    # organisms.
+
+    prompt_parts = [
+
+        # 1. GLOBAL IMAGE TYPE
+        (
+            "Photorealistic underwater robotic benthic survey image, "
+            "realistic biological morphology and natural ecological habitat."
+        ),
+
+        # 2. ENVIRONMENT
+        (
+            f"Temperate coastal seabed consisting of {scene_template}. "
+            f"The habitat contains {algae} and {substrate}."
+        ),
+
+        # 3. COMPOSITION
+        (
+            f"{composition}. "
+            f"{SCENE_DENSITIES[density]}. "
+            f"{DETECTION_DIFFICULTY[difficulty]}."
+        ),
+
+        # 4. DEPTH / SPATIAL DISTRIBUTION
+        # Was module-level random.choice(), bypassing the seeded rng - meant
+        # the same seed could produce a different prompt on a re-run, breaking
+        # the module's own "deterministic random generation" design goal.
+        rng.choice(DEPTH_DISTRIBUTIONS) + ".",
+
+        # 5. TARGET OBJECTS
+        (
+            f"The target organisms are naturally distributed within the habitat: "
+            f"{subjects}."
+        ),
+
+        # 6. CAMERA
+        (
+            f"{CAMERA_HEIGHTS[camera_height]}, "
+            f"{camera_fov}, "
+            f"natural perspective."
+        ),
+
+        # 7. WATER OPTICS - always clear/neutral; see SCENE_WATER_PHRASE comment
+        (
+            f"{SCENE_WATER_PHRASE}."
+        ),
+
+        # 8. LIGHTING
+        (
+            f"{lighting}."
+        ),
+
+        # 9. MOTION
+        (
+            f"{camera_motion}."
+        ),
+
+        # 10. SENSOR
+        (
+            f"{imaging}."
+        ),
+
+        # 11. FRAMING
+        (
+            f"{FRAMING[framing]}."
+        ),
+
+        # 12. FINAL REALISM ANCHOR
+        (
+            "The image should resemble a frame captured by a real underwater "
+            "robot during an ecological survey rather than a posed wildlife "
+            "photograph, cinematic scene or artificial 3D environment."
+        ),
+    ]
+
     if not supports_negative:
-        parts.append(POSITIVE_ONLY_GUARDS)
+        prompt_parts.append(POSITIVE_ONLY_GUARDS)
 
-    return ", ".join(parts), (NEGATIVE if supports_negative else None)
+    prompt = " ".join(prompt_parts)
 
+    negative_prompt = NEGATIVE if supports_negative else None
+
+    # ------------------------------------------------------------------
+    # Metadata
+    # ------------------------------------------------------------------
+
+    metadata = PromptMetadata(
+        seed=seed,
+
+        density=density,
+        difficulty=difficulty,
+
+        camera_height=camera_height,
+        framing=framing,
+
+        class_counts=dict(counts),
+
+        scene_template_index=scene_idx,
+        algae_variation_index=algae_idx,
+        substrate_variation_index=substrate_idx,
+        lighting_index=lighting_idx,
+        composition_index=composition_idx,
+        camera_fov_index=camera_fov_idx,
+        camera_motion_index=camera_motion_idx,
+        imaging_index=imaging_idx,
+    )
+
+    return prompt, negative_prompt, metadata
+
+
+# ============================================================================
+# HIGH-LEVEL DATASET PROMPT GENERATOR
+# ============================================================================
+
+def generate_dataset_prompts(
+    number_of_images: int,
+    *,
+    base_seed: int = 2026,
+    supports_negative: bool = True,
+    density_distribution: Optional[dict[str, float]] = None,
+    difficulty_distribution: Optional[dict[str, float]] = None,
+) -> list[dict[str, object]]:
+    """
+    Generate a complete list of prompts for a synthetic dataset.
+
+    No manual prompting is required.
+
+    Each returned item contains:
+
+        image_id
+        seed
+        prompt
+        negative_prompt
+        metadata
+
+    Example
+    -------
+    prompts = generate_dataset_prompts(
+        1500,
+        base_seed=1234,
+    )
+
+    The caller can then feed each prompt to the image-generation model.
+    """
+
+    if number_of_images < 1:
+        raise ValueError("number_of_images must be >= 1")
+
+    rng = random.Random(base_seed)
+
+    # Default distributions.
+    if density_distribution is None:
+        density_distribution = {
+            "sparse": 0.25,
+            "moderate": 0.55,
+            "dense": 0.20,
+        }
+
+    if difficulty_distribution is None:
+        difficulty_distribution = {
+            "easy": 0.25,
+            "moderate": 0.55,
+            "hard": 0.20,
+        }
+
+    def weighted_choice(
+        distribution: dict[str, float],
+    ) -> str:
+
+        keys = list(distribution.keys())
+        weights = list(distribution.values())
+
+        return rng.choices(
+            keys,
+            weights=weights,
+            k=1,
+        )[0]
+
+    results = []
+
+    for index in range(number_of_images):
+
+        # Each image receives a unique seed.
+        seed = rng.randint(0, 2**31 - 1)
+
+        density = weighted_choice(
+            density_distribution
+        )
+
+        difficulty = weighted_choice(
+            difficulty_distribution
+        )
+
+        camera_height = rng.choice(
+            list(CAMERA_HEIGHTS.keys())
+        )
+
+        framing = rng.choice(
+            list(FRAMING.keys())
+        )
+
+        counts = generate_class_counts(
+            rng=rng,
+            density=density,
+        )
+
+        prompt, negative_prompt, metadata = build_prompt(
+            counts=counts,
+            seed=seed,
+            density=density,
+            difficulty=difficulty,
+            camera_height=camera_height,
+            framing=framing,
+            supports_negative=supports_negative,
+        )
+
+        results.append(
+            {
+                "image_id": f"synthetic_{index:05d}",
+                "seed": seed,
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "metadata": asdict(metadata),
+            }
+        )
+
+    return results
+
+
+# ============================================================================
+# SIMPLE MANIFEST EXPORT
+# ============================================================================
+
+def save_prompt_manifest(
+    prompts: list[dict[str, object]],
+    output_path: str,
+) -> None:
+    """
+    Save generated prompts and metadata to JSON.
+
+    This manifest is extremely useful for reproducibility and dataset auditing.
+    """
+
+    import json
+
+    with open(
+        output_path,
+        "w",
+        encoding="utf-8",
+    ) as f:
+
+        json.dump(
+            prompts,
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
+
+
+# ============================================================================
+# DETECTOR PROMPTS
+# ============================================================================
 
 def detector_prompts() -> dict[int, str]:
-    """Short noun-phrase concepts for Stage 2 (SAM3 / Grounding DINO).
-
-    Deliberately NOT the Stage 1 scene sentences - detectors want a bare concept.
     """
-    return {cid: entry["short"] for cid, entry in CLASSES.items()}
+    Short concept prompts for a later detector / segmentation model.
+
+    Keep these separate from the detailed image-generation descriptions.
+
+    These are useful for:
+        - SAM-style segmentation
+        - Grounding DINO
+        - open-vocabulary detection
+        - annotation assistance
+    """
+
+    return {
+        0: "starfish",
+        1: "sea urchin",
+        2: "scallop",
+    }
+
+
+# ============================================================================
+# CLASS MAP
+# ============================================================================
+
+def class_names() -> dict[int, str]:
+    """
+    Return the fixed YOLO class mapping.
+    """
+
+    return {
+        0: "starfish",
+        1: "sea_urchin",
+        2: "scallop",
+    }
+
+
+# ============================================================================
+# QUICK TEST
+# ============================================================================
+
+if __name__ == "__main__":
+
+    # Generate ten example prompts.
+    prompts = generate_dataset_prompts(
+        number_of_images=10,
+        base_seed=2026,
+        supports_negative=True,
+    )
+
+    for item in prompts[:3]:
+
+        print("=" * 80)
+
+        print(
+            f"IMAGE: {item['image_id']}"
+        )
+
+        print(
+            f"SEED: {item['seed']}"
+        )
+
+        print(
+            "\nPROMPT:\n"
+            f"{item['prompt']}"
+        )
+
+        print(
+            "\nNEGATIVE:\n"
+            f"{item['negative_prompt']}"
+        )
+
+        print(
+            "\nMETADATA:\n"
+            f"{item['metadata']}"
+        )
+
+        print()

@@ -11,10 +11,6 @@
       "short": "sea urchin"
     },
     "2": {
-      "duo_label": "holothurian",
-      "short": "sea cucumber"
-    },
-    "3": {
       "duo_label": "scallop",
       "short": "scallop"
     }
@@ -63,7 +59,7 @@
         2
       ],
       "class_names": [
-        "sea cucumber"
+        "scallop"
       ],
       "requested_counts": {
         "2": 2
@@ -73,24 +69,6 @@
       "density_floor_applied": false,
       "framing": "close-up",
       "seed": 42003
-    },
-    {
-      "row": 4,
-      "image_id": "smoke_004",
-      "class_ids": [
-        3
-      ],
-      "class_names": [
-        "scallop"
-      ],
-      "requested_counts": {
-        "3": 2
-      },
-      "total_instances": 2,
-      "density": "sparse",
-      "density_floor_applied": false,
-      "framing": "close-up",
-      "seed": 42004
     }
   ]
 }

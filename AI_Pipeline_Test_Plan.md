@@ -1,14 +1,22 @@
-# AI-Pipeline Smoke Test — Technical Build Plan (v6)
+# AI-Pipeline Smoke Test — Technical Build Plan (v7)
 
 **Purpose:** validate an all-AI alternative to the UE5.8 pipeline (generation -> annotation -> DR -> YOLO26) on a small pilot batch before committing to full-scale dataset generation. This is a pipeline-mechanics check, not a scientific result — sample size is deliberately tiny at this stage.
 
-**Compute:** RunPod Pod, **RTX 5090 (32GB VRAM)**, On-Demand, **Secure Cloud** with a network volume (volumes are unavailable on Community Cloud; pod and volume must share a datacenter). Nothing runs on the local machine — the local RTX 4060 Laptop (8GB) is for editing only. Sync via Git: edit in PyCharm -> `git push` -> SSH to pod -> `git pull` -> run -> pull results back.
+**Compute:** RunPod Pod, **32GB+ VRAM**, On-Demand, **Secure Cloud** with a persistent volume. Nothing runs on the local machine — local GPUs are for editing only. Pods have moved between RTX 5090 (32GB) and RTX 6000 Ada (48GB) across sessions; the pipeline is GPU-model-agnostic as long as VRAM and sm-arch checks in `scripts/pod_preflight.py` pass. Sync via Git: edit in PyCharm -> `git push` -> SSH to pod -> `git pull` -> run -> pull results back. See `POD_RUNBOOK.md` for the exact per-session commands.
 
 **Repo:** `https://github.com/rithish007/ImgGen_AI.git` (branch `main`)
 
 ---
 
 ## Changelog
+
+**v6 -> v7**
+1. **SD3.5 dropped; Klein is the sole generation model.** Smoke-test comparison on identical prompts: SD3.5 rendered sea urchin spines as short blunt bumps (a real anatomical defect, not a style difference) and shot every class as an isolated macro product photo, ignoring the wide-angle survey-camera framing the whole pipeline depends on. Klein respected that framing; SD3.5 didn't, consistently, across all four smoke-test classes.
+2. **Sea cucumber (DUO class_id 2, "holothurian") removed entirely** after repeated generation failures (toy caterpillar/millipede anatomy) that did not resolve even with a real reference photo. **Scallop renumbered 3 -> 2** to keep class IDs contiguous for YOLO training (a gap at 2 either breaks training config or wastes a class slot). **This is now a DUO-derived 3-class subset (starfish, sea urchin, scallop), not an exact DUO match** — a class_id of 2 in this pipeline's output means scallop, not DUO's holothurian. Anything comparing results back to DUO must account for this explicitly.
+3. **`src/prompts.py` rewritten** with a genuine diversity engine — per-class morphology/arrangement variant lists, plus scene/algae/substrate/lighting/composition/camera/imaging variation, all seeded deterministically per row. Real improvement over the single fixed string per class used through v6, where every instance of a class looked stylistically identical.
+4. **Caught and fixed a reopened regression during that rewrite**: the new module's `WATER_CONDITIONS` baked turbidity/colour-cast language directly into the Stage 1 prompt (`"turbid coastal seawater"`, `"green-blue coastal seawater... reduced red and orange visibility"`, etc.) — the exact double-degradation bug fixed in v4/v5. Stage 3's Akkaynak-Treibitz transform needs clean scene radiance as input; reverted to a fixed clear/colour-neutral phrase (`SCENE_WATER_PHRASE`), removed the parameter and its randomized selection entirely so there is nothing left to accidentally re-enable.
+5. Fixed three bugs the rewrite introduced that would have crashed or silently corrupted output: a determinism bug (one field used unseeded `random.choice` instead of the seeded `rng`), a fragile global string `.replace('a ', '')` that stripped mid-sentence articles as well as the intended leading one, and a `FRAMING` key rename (`"close"` vs. the manifest's existing `"close-up"`) that would have raised `KeyError` on the first real run.
+6. `build_manifest.py`'s combinatorial design reworked for 3 classes: **7 non-empty combinations, 11-row pilot manifest** (was 15 combinations / 20 rows for 4 classes) — same design shape (cover every combination once, then reinforce singles and the all-classes case), scaled down.
 
 **v5 -> v6**
 1. **Jerlov coefficients sourced.** Confirmed there is no universal, camera-independent Jerlov coefficient table — Akkaynak et al. (CVPR 2017) show the RGB-domain ratios depend on camera spectral response, imaging range, and reflectance (their Eq. 9); both that paper and Berman et al. (BMVC 2017) present the per-type ratios only as scatter plots, never a printed table. Adopted the `'peak'`-branch values from `danaberman/underwater-hl`'s `get_water_types.m` (cited, code-shipped, camera-agnostic evaluation) for 1C/3C/5C, with one flagged, user-confirmed inference resolving an 8-vs-10 mismatch between that file's coefficient arrays and its named type list. See `src/jerlov.py`.
@@ -105,77 +113,57 @@ Watch specifically for the **culinary failure**: "scallop" in web image-caption 
 
 ---
 
-## Stage 1 — Base image generation (dual-model comparison)
+## Stage 1 — Base image generation (Klein only)
 
-Same manifest through both models, both bf16:
+SD3.5 was dropped after the smoke-test comparison (v7 changelog) — real anatomical defect on sea urchin, and it consistently ignored the wide-angle survey-camera framing this pipeline depends on. FLUX.2 klein base is now the sole generation model:
 
 | Model | Repo | Params | Steps | Guidance | VRAM (bf16, 1024²) |
 |---|---|---|---|---|---|
 | FLUX.2 klein base | `black-forest-labs/FLUX.2-klein-base-9B` | 9B | 50 | 4.0 | ~29GB |
-| SD 3.5 Large | `stabilityai/stable-diffusion-3.5-large` | 8B MMDiT | 28-40 | 3.5-4.5 | ~26GB |
 
-Use the **base** klein variant, not the step-distilled `FLUX.2-klein-9B`. Distilled runs in 4 steps but has materially weaker prompt adherence and less sample diversity — and compositional obedience is exactly what Checkpoint 1.5 measures. At n=20 the extra steps are free.
+Use the **base** klein variant, not the step-distilled `FLUX.2-klein-9B`. Distilled runs in 4 steps but has materially weaker prompt adherence and less sample diversity — and compositional obedience is exactly what Checkpoint 1.5 measures.
 
-**Do not hold both models in VRAM at once** (29 + 26 > 32). Two separate passes; release the pipeline between them. Klein base at ~29GB is close enough to the ceiling that `enable_model_cpu_offload()` may be needed — confirm on the first image, not at image 15.
+Native 1024×1024; resize/crop to 640×640 happens at Stage 4, not here.
 
-Both models are native 1024×1024, so neither gets a resize advantage before Stage 4.
+**Pilot batch:** 11 images (see the reworked 3-class manifest below)
 
-**Pilot batch:** 20 images per model (40 total)
+### Class vocabulary — 3 classes, DUO-derived (not DUO-exact)
 
-### Class vocabulary and prompt text
+Sea cucumber (DUO `class_id 2`, "holothurian") was removed entirely after repeated generation failures that did not resolve even against a real reference photo. Scallop was renumbered `3 -> 2` to keep IDs contiguous for YOLO training. **This pipeline's `class_id 2` means scallop, not DUO's holothurian** — note this explicitly in anything that compares back to DUO.
 
-| class_id | DUO label | short name | **prompt phrase (use this)** |
+| class_id (this pipeline) | DUO class_id | DUO label | short name |
 |---|---|---|---|
-| 0 | starfish | starfish | `a starfish on the seabed` |
-| 1 | echinus | sea urchin | `a spiny sea urchin on the rocky seabed` |
-| 2 | holothurian | sea cucumber | `a live sea cucumber crawling on the sandy seabed` |
-| 3 | scallop | scallop | `a live scallop, shell open, resting on the sandy seabed` |
+| 0 | 0 | starfish | starfish |
+| 1 | 1 | echinus | sea urchin |
+| 2 | 3 | scallop | scallop |
 
-Two separate reasons for this table, both load-bearing:
+Prompt text now lives entirely in `src/prompts.py`'s `CLASSES` dict as **morphological** descriptions (body shape, texture, colour, posture), not the animal's name — naming pulls a diffusion model toward the most-photographed sense of the word, which for scallop is a seafood dish. Each class has several hand-written morphology and arrangement variants, randomly selected per row but fully deterministic given the row's seed. See that file's inline comments for the failure each specific phrasing choice fixes (sea urchin: flattened dome not sphere, darker; scallop: closed shell with a hint of living tissue, never "shell open"; starfish: small and camouflaged against rock/algae, not a large high-contrast hero shot).
 
-- **Common name over taxonomic name.** VLMs are trained on web captions where "sea urchin"/"sea cucumber" are common and "echinus"/"holothurian" are rare. The taxonomic terms are for `class_id` mapping only — never typed into a generator or detector.
-- **Habitat sense over culinary sense.** Bare "scallop" and "sea cucumber" resolve to food in web image data. The qualifiers (`live`, `on the seabed`, `crawling`, `shell open`) force the biological sense. Starfish and sea urchin do not have this problem but are phrased consistently.
-
-For Stage 2 detector prompts, use the **short name** column (detectors want a bare noun phrase concept, not a scene description).
+For Stage 2 detector prompts, use `detector_prompts()` from `src/prompts.py` (bare noun-phrase concepts: "starfish", "sea urchin", "scallop" — not the Stage 1 scene sentences).
 
 ### Scene construction
 
-**Density:** sparse (2-3 instances) or moderate (4-6 instances) per image
-**Framing:** close-up to mid, ROV forward-facing — cues: wide-angle lens, slight fisheye distortion
+**Density and framing** are now sampled from richer variant lists in `src/prompts.py` (`SCENE_DENSITIES`, `FRAMING`, plus independent camera-height/FOV/motion/lighting/imaging axes) rather than a single fixed phrase per density band — see the v7 changelog for what this replaced.
 
-**Scene descriptor — the v4 change, refined.** Do not prompt the abstraction "clear water". Name a real photographic condition that is *both* underwater *and* colour-neutral:
+**Water is always clear and colour-neutral, fixed, non-random** (`SCENE_WATER_PHRASE`): *"clear seawater with good visibility, true-to-life natural colour and no artificial colour cast."* This is deliberately not configurable per-row. The output must approximate **scene radiance** `J_c`, which is what Stage 3b's Akkaynak-Treibitz transform consumes — all water-column effects (attenuation, colour cast, backscatter, veiling light) are added at Stage 3, never here. A rewrite of this module briefly reintroduced randomized turbidity/colour-cast language at Stage 1 (see v7 changelog item 4); it was caught and reverted, and the parameter removed entirely rather than just neutralized, so there's nothing left to accidentally re-enable.
 
-> `underwater photograph, shallow tropical reef flat, bright sunlight, sun caustics rippling across the sandy seabed, clear water, high visibility, natural colour, neutral white balance, wide-angle ROV camera`
+**Negative prompt exists but Klein can't use it.** `Flux2KleinPipeline.__call__` accepts `negative_prompt_embeds` but has **no `negative_prompt` parameter** — verified against the installed diffusers. `src/prompts.py`'s `NEGATIVE` string (aquarium/coral/product-photo/caterpillar/dead-shell exclusions, built up across every smoke-test failure so far) is therefore restated affirmatively via `POSITIVE_ONLY_GUARDS` and appended to the positive prompt whenever `supports_negative=False`, which is always true for the current single-model setup.
 
-**Sun caustics are the critical cue** — dappled light on the seabed is unmistakably underwater and occurs only in clear shallow water. It buys "obviously submerged" without buying a colour cast. This is what prevents the two failure modes: aquarium drift and green-murk-anyway.
-
-The output must approximate **scene radiance** `J_c`, which is what Stage 3b consumes. All water-column effects — attenuation, colour cast, backscatter, veiling light — are added at Stage 3, never baked in here.
-
-**Negative prompt (SD 3.5 only):**
-`text, watermark, diver, boat, human, water surface, sky, green tint, murky, hazy, low visibility, colour cast, dark, aquarium, fish tank, glass, white background, studio, illustration, drawing, cartoon, 3d render`
-
-**Negative-prompt asymmetry — verified against the installed diffusers.** `Flux2KleinPipeline.__call__` accepts `negative_prompt_embeds` but has **no `negative_prompt` parameter**; `StableDiffusion3Pipeline` has both. Passing a negative to Klein would silently do nothing. For Klein the exclusions are therefore restated affirmatively and appended to the positive prompt (`colour-accurate, evenly lit, open natural habitat, unobstructed view of the seafloor`), handled automatically by `supports_negative` in `src/prompts.py`.
-
-Record this at Checkpoint 1.5: SD 3.5 gets true negative guidance and Klein does not, so a difference in murk/aquarium artifacts between the two models is partly an artifact of the interface, not purely of model quality.
-
-**Resolution:** 1024×1024 native both models. Resize/crop to 640×640 at Stage 4, not here.
+**Resolution:** 1024×1024 native. Resize/crop to 640×640 at Stage 4, not here.
 
 ### Manifest
 
-4 classes = 15 non-empty combinations. At n=20 cover every combination once, then reinforce single-class exemplars:
+3 classes = 7 non-empty combinations (3 singles + 3 pairs + 1 triple). The 11-row design covers every combination once, then reinforces singles and the all-three case:
 
 | Row | Classes | Density | Framing |
 |---|---|---|---|
-| 1-4 | each class alone | sparse | close-up |
-| 5-10 | all 6 pairs | moderate | mid |
-| 11-14 | all 4 triples | moderate | close-up |
-| 15 | all four | moderate | mid |
-| 16-19 | each class alone (repeat, new seed) | moderate | mid |
-| 20 | all four (repeat, new seed) | sparse | close-up |
+| 1-3 | each class alone | sparse | close-up |
+| 4-6 | all 3 pairs | moderate | mid |
+| 7 | all three | moderate | mid |
+| 8-10 | each class alone (repeat, new seed) | moderate | mid |
+| 11 | all three (repeat, new seed) | sparse | close-up |
 
-Sidecar JSON per image: `{image_id, model, prompt, negative_prompt, seed, steps, guidance, classes, density, framing}`.
-
-**Seeds do not transfer across models.** Flux and SD3.5 use different latent geometry and schedulers, so a row's seed gives different compositions per model. The manifest holds *prompts* constant; it does not produce paired images.
+Sidecar JSON per image: `{image_id, model, prompt, negative_prompt, seed, steps, guidance, classes, density, framing, prompt_metadata}` — `prompt_metadata` is the full `PromptMetadata` from `src/prompts.py` (which of each diversity axis was selected), kept for dataset auditing even though the manifest itself only fixes class_ids/density/framing/seed.
 
 ### Class balance — how it is controlled
 
@@ -183,44 +171,44 @@ Image-level balance is exact, by construction:
 
 | Rows | Images per class |
 |---|---|
-| 1-4 singles | 1 |
-| 5-10 pairs (each class in 3 of 6) | 3 |
-| 11-14 triples (each class in 3 of 4) | 3 |
-| 15 all-four | 1 |
-| 16-19 singles repeat | 1 |
-| 20 all-four | 1 |
-| **Total** | **10 of 20, every class** |
+| 1-3 singles | 1 |
+| 4-6 pairs (each class in 2 of 3) | 2 |
+| 7 triple | 1 |
+| 8-10 singles repeat | 1 |
+| 11 triple repeat | 1 |
+| **Total** | **6 of 11, every class** |
 
-Instance-level is balanced *in expectation* (~22 instances/class/model by symmetry), but **cannot be enforced**, because two uncontrolled stages intervene:
+Instance-level is balanced *in expectation*, but **cannot be enforced**, because two uncontrolled stages intervene:
 
-1. **Generator non-compliance** — request 3 scallops, get 1.
+1. **Generator non-compliance** — request 2 scallops, get 7-11 (observed repeatedly across smoke tests).
 2. **Detector recall bias** — if SAM3 finds 90% of starfish and 40% of scallops, the labelled distribution reflects the *detector*, not the scene.
 
-(2) is the subtle one: measured class balance is partly a property of the annotator. So balance is **measured, not enforced** — Stage 2 emits the counts, and those drive over-sampling in the *next* manifest. At n=20 the counts are too noisy to act on; the mechanism must exist now so it is ready at scale.
+(2) is the subtle one: measured class balance is partly a property of the annotator. So balance is **measured, not enforced** — Stage 2 emits the counts, and those drive over-sampling in the *next* manifest.
 
 ### Checkpoint 1.5 — generation comparison
-Review all 40 (small enough at this scale):
+Review all 11 (small enough at this scale):
 - **Compositional obedience** — requested classes present, at requested density?
 - **Sense correctness** — live animals on a seabed, not food, not illustrations?
-- **Colour neutrality** — clean enough to serve as `J_c` for Stage 3b, or did the model impose a cast despite the negatives?
+- **Anatomical correctness** — does the class actually look like the real animal (this is what killed sea cucumber and, on a different model, sea urchin on SD3.5)?
+- **Colour neutrality** — clean enough to serve as `J_c` for Stage 3b?
+- **Scale/camouflage realism** — checked against real annotated DUO frames, not just "looks like a real animal" (this is what caught starfish being rendered as an oversized, high-contrast hero shot in an earlier round)
 - Visual realism, artifact presence
-- Decide: one model for scale-up, or keep both as parallel tracks
 
 ---
 
 ## Stage 2 — Auto-annotation (SAM 3 vs Grounding DINO)
 
-- **SAM 3** and **Grounding DINO**, same 40 images, two independent passes
-- **Text prompts:** the short names — `starfish`, `sea urchin`, `sea cucumber`, `scallop`. Not the Stage 1 scene sentences, and never `echinus`/`holothurian`.
-- **Output:** YOLO `.txt` from boxes (mask-to-box for SAM3), using DUO-aligned `class_id` (0=starfish, 1=echinus, 2=holothurian, 3=scallop) regardless of which prompt triggered the detection
+- **SAM 3** and **Grounding DINO**, same 11 images, two independent passes
+- **Text prompts:** `detector_prompts()` from `src/prompts.py` — `starfish`, `sea urchin`, `scallop`. Not the Stage 1 scene sentences, and never `echinus` (sea cucumber/holothurian is gone entirely, see v7 changelog).
+- **Output:** YOLO `.txt` from boxes (mask-to-box for SAM3), using this pipeline's own `class_id` (0=starfish, 1=sea urchin/echinus, 2=scallop — **not** DUO's numbering, see Stage 1) regardless of which prompt triggered the detection
 - Annotate the **clean** Stage 1 image. Stage 3 is pixel-only, so the same label file is valid for the DR'd copy.
 
-**SAM 3 is one concept per forward pass.** `Sam3Processor` takes a single noun phrase (it wraps a CLIPTokenizer) — four classes means four passes per image. Compute vision features once and reuse:
+**SAM 3 is one concept per forward pass.** `Sam3Processor` takes a single noun phrase (it wraps a CLIPTokenizer) — three classes means three passes per image. Compute vision features once and reuse:
 
 ```python
 img_inputs = processor(images=image, return_tensors="pt").to(model.device)
 vision_embeds = model.get_vision_features(pixel_values=img_inputs.pixel_values)
-for prompt in ["starfish", "sea urchin", "sea cucumber", "scallop"]:
+for prompt in ["starfish", "sea urchin", "scallop"]:
     text_inputs = processor(text=prompt, return_tensors="pt").to(model.device)
     outputs = model(vision_embeds=vision_embeds, **text_inputs)
 ```
@@ -233,9 +221,9 @@ for prompt in ["starfish", "sea urchin", "sea cucumber", "scallop"]:
 final_scores = outputs.pred_logits.sigmoid() * outputs.presence_logits.sigmoid()
 ```
 
-Most manifest rows contain only a subset of the four classes, so we constantly prompt for concepts that are absent. Without the presence multiplier, absent classes produce confident false positives and Checkpoint 2.5 wrongly rejects SAM 3.
+Most manifest rows contain only a subset of the three classes, so we constantly prompt for concepts that are absent. Without the presence multiplier, absent classes produce confident false positives and Checkpoint 2.5 wrongly rejects SAM 3.
 
-**Grounding DINO: one class per pass, not a period-joined prompt.** GDINO returns matched text spans and routinely emits partial phrases; `"sea urchin"` and `"sea cucumber"` collide on the token `"sea"`, silently corrupting the class mapping. One prompt per pass makes it unambiguous. At n=40 the cost is irrelevant.
+**Grounding DINO: one class per pass, not a period-joined prompt.** GDINO returns matched text spans and routinely emits partial phrases, which is exactly how "sea urchin"/"sea cucumber" used to collide on the token "sea" — with sea cucumber gone this specific collision no longer applies, but one-prompt-per-pass stays the rule since new collisions could exist between remaining classes' text.
 
 **Fallback** if SAM3 access is revoked: Grounding DINO (text->box) + SAM2 (box->mask). SAM2 cannot take a text prompt alone, so it must be paired with GDINO to stay concept-driven.
 
@@ -244,7 +232,7 @@ Most manifest rows contain only a subset of the four classes, so we constantly p
 ### Checkpoint 2.5 — annotation comparison
 - Box/mask correctness per class
 - SAM3 vs GDINO **per class**, not just overall — pick the stronger engine, or a per-class hybrid if there is a clear split
-- Expect scallop and sea cucumber to be weakest (low contrast against substrate, partial burial). If both engines fail on the same class, that is a finding about the class, not the engine.
+- Expect scallop to be weakest (low contrast against substrate, partial burial, and the persistent count-overshoot problem noted in Stage 1).
 - Cross-check against Checkpoint 1.5: a low instance count means either the generator did not draw them or the detector did not find them. Distinguish these — they have opposite fixes.
 
 ---
@@ -327,8 +315,8 @@ Note: `C:\dev\ImageTranform\domain_randomize_batch.py` is an ad-hoc per-channel 
 - Resize/center-crop to 640×640 here
 - Ultralytics layout: `images/train`, `images/val`, `labels/train`, `labels/val`, `data.yaml`
 - **A raw image and its DR'd copy must land in the same split.** Splitting them puts a recoloured copy of a training image into val — leakage.
-- At pilot scale, consider putting all 80 pairs in train and skipping val — a 40-image val set carries no statistical signal and this plan's criteria are explicitly qualitative. Build the split logic anyway; it is needed at full scale.
-- Pilot scale: up to 40 raw (both models) + 40 DR'd = up to 80 image-label pairs
+- At pilot scale, consider putting all 22 pairs in train and skipping val — an 11-image val set carries no statistical signal and this plan's criteria are explicitly qualitative. Build the split logic anyway; it is needed at full scale.
+- Pilot scale: 11 raw + 11 DR'd = 22 image-label pairs
 
 ---
 
@@ -338,20 +326,21 @@ Paused pending manual review of Stage 1-4 outputs. Do not start until explicitly
 
 ---
 
-## Pilot success criteria (qualitative, not statistical at n=20/model)
+## Pilot success criteria (qualitative, not statistical at n=11)
 
-- Both models produce visually plausible, class-diverse images with the **correct sense** of each class (live animal, not food)
+- Klein produces visually plausible, class-diverse images with the **correct sense** (live animal, not food) and **correct anatomy** for all 3 remaining classes
 - Stage 1 output is colour-neutral enough to serve as `J_c` input to Stage 3b
-- At least one annotation engine gets usable boxes on all 4 classes
+- At least one annotation engine gets usable boxes on all 3 classes
 - DR transform runs without breaking label/box alignment (verified by overlay at Checkpoint 3)
 - DR'd output is recognisably 0-5m coastal water, not black and not neon green
-- Clear enough result to decide: which generation model, which annotation engine
+- Clear enough result to decide: which annotation engine
 
 ## Deliverables back into the main plan
 
-- Chosen generation model (or reason to keep both)
+- Generation model: **Klein** (decided — see v7 changelog for why SD3.5 was dropped)
+- Class set: **3-class DUO-derived subset** (starfish, sea urchin, scallop — sea cucumber dropped, see v7 changelog)
 - Chosen annotation engine/combo
 - `reports/class_counts.json` — achieved instance balance per class per engine, to drive full-scale manifest over-sampling
 - Estimated auto-annotation error rate from the full-batch review
-- Cost/time-per-image on the RTX 5090, to budget the full-scale batch
+- Cost/time-per-image on the pod GPU, to budget the full-scale batch
 - Whether Jerlov 1C/3C/5C defaults are close enough to DUO to make explicit calibration worthwhile
