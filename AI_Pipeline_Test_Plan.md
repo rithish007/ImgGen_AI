@@ -387,11 +387,21 @@ There are two distinct downstream failure modes this doesn't rule out:
 
 ## Stage 4 — Dataset assembly
 
-- Resize/center-crop to 640×640 here
-- Ultralytics layout: `images/train`, `images/val`, `labels/train`, `labels/val`, `data.yaml`
-- **A raw image and its DR'd copy must land in the same split.** Splitting them puts a recoloured copy of a training image into val — leakage.
-- At pilot scale, consider putting all 40 pairs in train and skipping val — a handful of val images carries no statistical signal and this plan's criteria are explicitly qualitative. Build the split logic anyway; it is needed at full scale.
-- Pilot scale: 20 raw + 20 DR'd = 40 image-label pairs
+**Goal driving this stage:** train YOLO26s under a 2x2 ablation - {original, original+DR} x {no augmentation, with augmentation} - to measure whether DR and/or augmentation each independently help.
+
+**Augmentation architecture, decided:** augmentation is applied **on-the-fly during YOLO training** via Ultralytics' built-in hyp config (HSV jitter, flips, rotation, mosaic, etc.), not pre-baked into extra image files. This matters for the geometric-augmentation concern raised when planning this stage: pre-baked geometric transforms (à la Stage 3's DR) would need their own box-coordinate recomputation, since a fixed saved file reuses the original label as-is. On-the-fly training-time augmentation doesn't have that problem - Ultralytics transforms box labels alongside its own geometric ops every step, which is exactly why on-the-fly geometric augmentation is normal practice in YOLO training. Consequence: this stage only assembles **2** dataset variants, not 4 - the augmentation axis becomes a Stage 5 training flag.
+
+`src/assemble_dataset.py` produces:
+- `dataset/original/` — 20 raw Stage 1 images
+- `dataset/original_dr/` — raw + DR'd (40 pairs), the same label file reused for both copies
+- `dataset/hyp/no_aug.yaml` — Ultralytics hyp override with every augmentation term zeroed, for the two no-augmentation runs; the with-augmentation runs use Ultralytics' own defaults directly, no file needed
+
+**Resize:** 640×640, not center-crop. Every image in this pipeline is square (1024×1024) throughout, so a straight resize is a pure isotropic scale - YOLO's normalized `cx,cy,w,h` coordinates are invariant to that, so labels are copied byte-unchanged rather than recomputed. Verified, not just assumed: compared `dataset/original_dr/labels/train/pilot_012_klein_dr.txt` against the original `outputs/1-pilot/labels/sam3/pilot_012_klein.txt` (identical), and re-ran the box-overlay check at the new 640×640 resolution (`visualize_annotations.py`) - boxes still land exactly on the starfish. This resize logic would need reworking if a future stage introduces non-square images or an actual crop.
+
+- **A raw image and its DR'd copy always land in the same split** — grouped by `image_id` before splitting (`split_ids()`), so a recoloured copy of a training image can never end up in val while its raw twin is in train (leakage).
+- Pilot scale defaults to `--val-count 0` (all 40 pairs in train, `data.yaml`'s `val:` points at `images/train` as a fallback so Ultralytics doesn't choke on a missing/empty val split) — a handful of val images carries no statistical signal at this scale and this plan's criteria are explicitly qualitative. The split logic itself is real and reusable via `--val-count N` for the full-scale run.
+
+**Stage 5 stays ON HOLD** (below) — this stage prepared what the 4 planned runs need but did not launch any training.
 
 ---
 
