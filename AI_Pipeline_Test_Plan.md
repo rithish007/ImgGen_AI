@@ -405,9 +405,19 @@ There are two distinct downstream failure modes this doesn't rule out:
 
 ---
 
-## Stage 5 — ON HOLD
+## Stage 5 — YOLO26s training (resumed 2026-07-29)
 
-Paused pending manual review of Stage 1-4 outputs. Do not start until explicitly resumed.
+Runs **locally**, not on the pod - RTX 4060 Laptop GPU (8GB VRAM), CUDA-enabled torch already installed. The dataset is tiny enough (20-40 images) that YOLO26s at 640px trains in minutes per run, so the pod's larger GPU brings no benefit here and this avoids paying for pod time on a job that fits the local card comfortably.
+
+`src/train_yolo.py` runs the planned 2x2 ablation - {original, original+DR} x {no augmentation, with augmentation} - each regime from a **fresh** `yolo26s.pt` checkpoint (no state carried between runs) via Ultralytics' AutoBatch (`batch=-1`, picks the largest batch the 8GB card fits at imgsz=640).
+
+**Augmentation, resolved:** on-the-fly during training via Ultralytics' own hyp mechanism, not pre-baked files - see Stage 4. The no-augmentation runs load `dataset/hyp/no_aug.yaml` (every augmentation term zeroed); the with-augmentation runs use Ultralytics' untouched defaults.
+
+**Output folder bug caught before the real run:** the first smoke test landed at `runs/detect/runs/train/<name>/` instead of the intended `runs/train/<name>/` - this machine's global Ultralytics `settings.json` has its own `runs_dir` plus a `datasets_dir` left over from an unrelated project, and relative `project=` paths were getting joined against that global state rather than the current working directory. Fixed by resolving `--project` to an absolute path before it reaches Ultralytics. Re-verified with a second smoke test before committing to the full run.
+
+Each regime lands in its own clearly-named folder: `runs/train/<regime>/` (`weights/best.pt`, `weights/last.pt`, `results.csv`, `results.png`, `confusion_matrix.png`, per-class PR curves - all Ultralytics' own standard per-run outputs, not custom-built here) plus a `runs/train/<regime>_val/` from the post-training validation pass, and a cross-regime `runs/train/summary.json` (mAP50, mAP50-95, precision, recall per regime) for the actual ablation comparison.
+
+**Known pilot-scale caveat, not a bug:** `data.yaml`'s `val:` points at `images/train` (Stage 4's pilot-scale default - no held-out val set), so all metrics here are train-set metrics, expected to be optimistic and not a measure of generalization. Qualitative/pipeline-mechanics signal only, matching this whole plan's stated purpose - see the top of this document.
 
 ---
 
