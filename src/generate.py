@@ -167,21 +167,25 @@ def _build_quantization_config(components: list[str]):
     Hopper, Blackwell) for native fp8 tensor cores; falls back to (slower)
     emulated fp8 on older cards.
 
-    Defensive attribute set, kept even after reverting to pinned diffusers==
-    0.39.0: a diffusers git-dev-source build (temporarily used for
-    Z-Image-Turbo, since dropped - see MODELS' comment) had a TorchAoConfig
-    missing include_input_output_embeddings entirely, which crashed
-    transformers==5.14.1's quantizer_torchao.py (reads that attribute
-    unconditionally) before any GPU work happened - not fixable by
-    constructing TorchAoConfig differently, the attribute didn't exist on
-    that build at all. Whether the pinned 0.39.0 release has the same gap is
-    untested - flux2dev's quantization path was never actually GPU-verified
-    even in the original Stage 0 setup (flux2dev was "future candidate, not
-    yet tested" per the plan doc). Setting it explicitly is a harmless no-op
-    if 0.39.0 already sets it correctly, and a real fix if it doesn't.
-    False = don't additionally quantize embedding layers, the conservative
-    default (preserves embedding precision; only the flagged components
-    above get fp8).
+    Defensive attribute sets - NOT a git-dev-build-only issue. Even the
+    pinned, stable diffusers==0.39.0's TorchAoConfig doesn't set every
+    attribute transformers==5.14.1's torchao integration reads unconditionally
+    for this specific dual-component (diffusion transformer + text-encoder)
+    quantization path. Two found so far, one at a time, each surfacing only
+    after the previous one was patched:
+      - include_input_output_embeddings (transformers/quantizers/quantizer_torchao.py)
+      - untie_embedding_weights (transformers/integrations/torchao.py convert())
+    This combination (PipelineQuantizationConfig spanning a diffusers
+    transformer AND a transformers text encoder together) was apparently
+    never exercised end-to-end before this pipeline tried it - flux2dev was
+    "kept as a future candidate, not yet tested" through the original Stage 0
+    setup, so nobody hit this until now. If a THIRD distinct missing
+    attribute shows up, stop patching one at a time and treat it as this
+    pairing not reliably supporting this quantization path at all, rather
+    than continuing whack-a-mole fixes.
+    False = don't additionally quantize/untie embedding layers, the
+    conservative default (preserves embedding precision; only the flagged
+    components above get fp8).
     """
     from diffusers import PipelineQuantizationConfig, TorchAoConfig
     from torchao.quantization import Float8WeightOnlyConfig
@@ -189,6 +193,7 @@ def _build_quantization_config(components: list[str]):
     def _config():
         cfg = TorchAoConfig(Float8WeightOnlyConfig())
         cfg.include_input_output_embeddings = False
+        cfg.untie_embedding_weights = False
         return cfg
 
     return PipelineQuantizationConfig(
