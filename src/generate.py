@@ -168,14 +168,34 @@ def _build_quantization_config(components: list[str]):
     """fp8 weight-only quantization for the given pipeline component names.
 
     Requires torchao and a >=8.9 compute capability GPU (RTX 4090/6000 Ada,
-    Hopper) for native fp8 tensor cores; falls back to (slower) emulated fp8
-    on older cards.
+    Hopper, Blackwell) for native fp8 tensor cores; falls back to (slower)
+    emulated fp8 on older cards.
+
+    Version-skew workaround (found on the 2-pilot RTX PRO 6000 run, diffusers
+    built from git source for Z-Image-Turbo/Qwen-Image support): this
+    diffusers dev build's TorchAoConfig does not set include_input_output_embeddings
+    at all (confirmed via inspect - the attribute is simply absent), but
+    transformers==5.14.1's quantizer_torchao.py unconditionally reads
+    self.quantization_config.include_input_output_embeddings while loading
+    ANY torchao-quantized model, crashing with AttributeError before any GPU
+    work happens. Not fixable by constructing TorchAoConfig differently - the
+    attribute doesn't exist on this class at all. Set it directly rather than
+    pin a different diffusers/transformers version, which risks breaking the
+    other four models that already load cleanly under this exact pair.
+    False = don't additionally quantize embedding layers, the conservative
+    default (preserves embedding precision; only the flagged components
+    above get fp8).
     """
     from diffusers import PipelineQuantizationConfig, TorchAoConfig
     from torchao.quantization import Float8WeightOnlyConfig
 
+    def _config():
+        cfg = TorchAoConfig(Float8WeightOnlyConfig())
+        cfg.include_input_output_embeddings = False
+        return cfg
+
     return PipelineQuantizationConfig(
-        quant_mapping={name: TorchAoConfig(Float8WeightOnlyConfig()) for name in components}
+        quant_mapping={name: _config() for name in components}
     )
 
 
