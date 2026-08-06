@@ -557,12 +557,29 @@ NEGATIVE = ", ".join(
 #
 # These are used when the model does not support a negative prompt.
 
+# Applies to every image regardless of requested classes.
 POSITIVE_ONLY_GUARDS = (
     "true-to-life natural colour reproduction, realistic biological morphology, "
     "natural ecological habitat, full rectangular frame, no lens vignette, "
     "no artificial colour grading, realistic underwater camera imagery, "
-    "natural irregular spatial distribution, bivalve shells fully closed and "
-    "undisturbed as found in their natural habitat"
+    "natural irregular spatial distribution"
+)
+
+# Bug found via audit: this used to be baked into POSITIVE_ONLY_GUARDS above,
+# which appends unconditionally to every prompt whenever supports_negative is
+# False (always true for Klein - see build_prompt()). That meant every single
+# image, including ones that never requested scallop, was explicitly told to
+# render "bivalve shells... in their natural habitat" - and Klein complied by
+# scattering small shell-shaped debris across the seabed as generic scene
+# clutter. SAM3's scallop-concept pass then correctly detects these (they
+# really do look like small closed scallop shells), which is why
+# reports/class_counts.json showed scallop instances in far more images (17/20)
+# than actually requested scallop (12/20): 33 of the 70 total SAM3-detected
+# scallop instances across the pilot came from rows that requested zero
+# scallops. Now only appended when scallop (class_id 2) is one of the row's
+# requested classes.
+BIVALVE_GUARD = (
+    "bivalve shells fully closed and undisturbed as found in their natural habitat"
 )
 
 
@@ -1012,7 +1029,10 @@ def build_prompt(
     ]
 
     if not supports_negative:
-        prompt_parts.append(POSITIVE_ONLY_GUARDS)
+        guards = POSITIVE_ONLY_GUARDS
+        if 2 in counts:  # scallop - see BIVALVE_GUARD's comment for why this must be conditional
+            guards = f"{guards}, {BIVALVE_GUARD}"
+        prompt_parts.append(guards)
 
     prompt = " ".join(prompt_parts)
 

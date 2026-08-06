@@ -111,10 +111,56 @@ def build_smoke_rows() -> list[tuple[list[int], str, str]]:
     return [([c], "sparse", "close-up") for c in ALL_CLASSES]
 
 
-def build_manifest(smoke: bool = False) -> dict:
+def build_balanced_rows(n_images: int) -> list[tuple[list[int], str, str]]:
+    """N rows, cycling through all 7 non-empty class combinations repeatedly
+    (rotating density/framing once per full cycle), for the 2-pilot
+    model-comparison test.
+
+    This is deliberately DIFFERENT from prompts.py's generate_class_counts()
+    (independent per-image random class selection, balanced only in
+    expectation) - the point of this manifest is to isolate one variable.
+    "Is the prompt able to produce a class-balanced dataset?" is only a clean
+    question if the REQUEST side is already balanced by construction; cycling
+    through the 7 combinations guarantees every class appears in the same
+    number of images (verified below), so any imbalance measured downstream
+    (SAM3 counts) is attributable to generation/detection compliance, not to
+    manifest randomness happening to favour one class this run.
+
+    Each class appears in 4 of every 7 rows (single + 2 pairs + triple), so at
+    n=50 (7 rows short of 8 full cycles) class image-counts differ by at most
+    1 - see build_2pilot_manifest's assertion.
+    """
+    combos = (
+        [[c] for c in ALL_CLASSES]
+        + [list(p) for p in combinations(ALL_CLASSES, 2)]
+        + [list(ALL_CLASSES)]
+    )
+    densities = sorted(DENSITY_RANGE)  # ["dense", "moderate", "sparse"] - order doesn't matter, just rotates
+    framings = ["close-up", "mid", "wide"]
+
+    rows: list[tuple[list[int], str, str]] = []
+    cycle = 0
+    while len(rows) < n_images:
+        density = densities[cycle % len(densities)]
+        framing = framings[cycle % len(framings)]
+        for combo in combos:
+            if len(rows) >= n_images:
+                break
+            rows.append((combo, density, framing))
+        cycle += 1
+    return rows
+
+
+def build_manifest(smoke: bool = False, balanced_n: int | None = None, stage_name: str = "1-pilot") -> dict:
     rng = random.Random(BASE_SEED)
-    rows = build_smoke_rows() if smoke else build_rows()
-    stage = "0.5-smoke" if smoke else "1-pilot"
+    if balanced_n is not None:
+        rows = build_balanced_rows(balanced_n)
+        stage = stage_name
+        id_prefix = stage_name
+    else:
+        rows = build_smoke_rows() if smoke else build_rows()
+        stage = "0.5-smoke" if smoke else "1-pilot"
+        id_prefix = "smoke" if smoke else "pilot"
 
     entries = []
     for i, (class_ids, density, framing) in enumerate(rows, start=1):
@@ -123,7 +169,7 @@ def build_manifest(smoke: bool = False) -> dict:
         entries.append(
             {
                 "row": i,
-                "image_id": f"{'smoke' if smoke else 'pilot'}_{i:03d}",
+                "image_id": f"{id_prefix}_{i:03d}",
                 "class_ids": class_ids,
                 "class_names": [CLASSES[c]["short"] for c in class_ids],
                 "requested_counts": {str(c): counts[c] for c in class_ids},
@@ -170,11 +216,18 @@ def summarize(manifest: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--smoke", action="store_true", help="build the 4-row Stage 0.5 manifest")
+    ap.add_argument("--balanced", type=int, default=None, metavar="N",
+                     help="build an N-row class-balanced manifest (cycles the 7 combinations) instead of the fixed pilot design")
+    ap.add_argument("--stage-name", default="2-pilot", help="stage/id-prefix for --balanced manifests (default: 2-pilot)")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    manifest = build_manifest(smoke=args.smoke)
-    out = args.out or Path("manifests") / ("smoke.json" if args.smoke else "pilot.json")
+    manifest = build_manifest(smoke=args.smoke, balanced_n=args.balanced, stage_name=args.stage_name)
+    if args.balanced is not None:
+        default_name = f"{args.stage_name}.json"
+    else:
+        default_name = "smoke.json" if args.smoke else "pilot.json"
+    out = args.out or Path("manifests") / default_name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
