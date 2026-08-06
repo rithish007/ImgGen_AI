@@ -27,6 +27,8 @@ pillow==12.2.0
 # --- required on the pod, not yet installed locally ---
 # accelerate: needed by enable_model_cpu_offload() (Klein base is ~29GB on a 32GB card)
 accelerate>=1.14.0
+# peft: required by diffusers' load_lora_weights() - Qwen-Image-Lightning is a LoRA
+peft>=0.20.0
 # torchao: fp8 weight-only quantization for the flux2dev generate.py model -
 # its 32B transformer + 24B Mistral text encoder don't fit a 47GB card in
 # plain bf16 otherwise. Needs compute capability >= 8.9 for native fp8 tensor
