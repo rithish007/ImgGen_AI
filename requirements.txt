@@ -8,15 +8,15 @@
 # template on cu128 or newer; the local venv is on cu132.
 
 # --- core (versions match the verified local env) ---
-# diffusers must come from git source, not 0.39.0, for the 2-pilot comparison:
-# Z-Image-Turbo's ZImagePipeline needs unreleased PRs (#12703, #12715) per its
-# model card, and Qwen-Image's card also recommends latest-from-source. This
-# is a real risk to klein/flux2dev, which were only ever verified against
-# 0.39.0 - re-run scripts/pod_preflight.py (checks all 5 pipeline classes
-# import cleanly) after this install, BEFORE spending GPU time on klein or
-# flux2dev specifically, in case the newer diffusers changed their call
-# signature (e.g. supports_negative, param names) out from under generate.py.
-diffusers @ git+https://github.com/huggingface/diffusers
+# diffusers==0.39.0 is also the current latest stable PyPI release (checked
+# 2026-08-06) and has had Qwen-Image support since 0.35.0 - no need for a git
+# install. It was briefly bumped to git source for Z-Image-Turbo's
+# ZImagePipeline (needs unreleased PRs), which broke flux2dev's quantization
+# path (a diffusers dev-build TorchAoConfig gap, see generate.py's
+# _build_quantization_config comment) for a model that never needed the
+# newer diffusers at all. Z-Image-Turbo has been dropped entirely rather than
+# keep carrying that risk for every other model in the comparison.
+diffusers==0.39.0
 transformers==5.14.1
 huggingface_hub==1.25.1
 safetensors==0.8.0

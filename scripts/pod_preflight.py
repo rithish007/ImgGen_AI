@@ -26,21 +26,20 @@ MODEL_REPOS = [
     "stabilityai/stable-diffusion-3.5-large",
     "Qwen/Qwen-Image",
     "lightx2v/Qwen-Image-Lightning",
-    "Tongyi-MAI/Z-Image-Turbo",
     "facebook/sam3",
     "IDEA-Research/grounding-dino-base",
     "depth-anything/Depth-Anything-V2-Large-hf",
 ]
 
-# Weights + HF cache overhead + pilot outputs. Bumped for the 2-pilot 5-model
-# comparison, all cached simultaneously on one volume even though only one is
-# ever GPU-resident at a time: klein ~18GB + flux2dev+text-encoder ~90GB +
-# SD3.5 ~16GB + Qwen-Image ~40GB (bf16, 20B) + Z-Image-Turbo ~12GB, plus
-# SAM3/GDINO/DA-V2. This is a rough sum, not measured - it's intentionally
-# close to the 250GB volume being provisioned for this test, so treat a
-# free-space check that barely passes as a reason to verify actual usage
-# partway through downloads, not as comfortable headroom.
-REQUIRED_GB = 190
+# Weights + HF cache overhead + pilot outputs. For the 2-pilot 5-model
+# comparison (Z-Image-Turbo dropped - see generate.py's MODELS comment), all
+# cached simultaneously on one volume even though only one is ever
+# GPU-resident at a time: klein ~18GB + flux2dev+text-encoder ~90GB + SD3.5
+# ~16GB + Qwen-Image ~40GB (bf16, 20B; Lightning is a small LoRA on the same
+# base, negligible extra), plus SAM3/GDINO/DA-V2. This is a rough sum, not
+# measured - treat a free-space check that barely passes as a reason to
+# verify actual usage partway through downloads, not as comfortable headroom.
+REQUIRED_GB = 180
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
@@ -182,7 +181,7 @@ def check_libraries() -> None:
     check("transformers", True, transformers.__version__)
 
     for mod, names in (
-        (diffusers, ["Flux2KleinPipeline", "Flux2Pipeline", "StableDiffusion3Pipeline", "ZImagePipeline"]),
+        (diffusers, ["Flux2KleinPipeline", "Flux2Pipeline", "StableDiffusion3Pipeline"]),
         (transformers, ["Sam3Model", "Sam3Processor",
                         "GroundingDinoForObjectDetection",
                         "DepthAnythingForDepthEstimation"]),

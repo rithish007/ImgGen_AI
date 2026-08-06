@@ -148,19 +148,15 @@ MODELS = {
             "weight_name": "Qwen-Image-Lightning-8steps-V1.0.safetensors",
         },
     },
-    "z_image_turbo": {
-        "repo": "Tongyi-MAI/Z-Image-Turbo",
-        "pipeline": "ZImagePipeline",
-        "steps": 9,
-        "guidance": 0.0,  # turbo/distilled - model card: "Guidance should be 0 for the Turbo models"
-        "guidance_param": "guidance_scale",
-        "supports_negative": False,  # no negative_prompt in the model card's sample code
-        # 6B, fits its own model card's claimed 16GB consumer-GPU footprint -
-        # smallest of the five, least VRAM risk on a 48GB card.
-        "approx_vram_gb": 13,
-        "quantize_components": [],
-        "lora": None,
-    },
+    # z_image_turbo (Tongyi-MAI/Z-Image-Turbo) was dropped entirely - its
+    # ZImagePipeline needs unreleased diffusers PRs (#12703, #12715), which
+    # meant running diffusers from git source for every model in this
+    # comparison. That git build's TorchAoConfig was missing an attribute
+    # transformers==5.14.1 expects, crashing flux2dev's quantization path -
+    # a real bug in a model that never needed the newer diffusers at all.
+    # Dropping Z-Image-Turbo removes the only reason to leave the pinned,
+    # already-verified diffusers==0.39.0 (which has had Qwen-Image support
+    # since 0.35.0, so nothing else in this comparison loses anything).
 }
 
 
@@ -171,17 +167,18 @@ def _build_quantization_config(components: list[str]):
     Hopper, Blackwell) for native fp8 tensor cores; falls back to (slower)
     emulated fp8 on older cards.
 
-    Version-skew workaround (found on the 2-pilot RTX PRO 6000 run, diffusers
-    built from git source for Z-Image-Turbo/Qwen-Image support): this
-    diffusers dev build's TorchAoConfig does not set include_input_output_embeddings
-    at all (confirmed via inspect - the attribute is simply absent), but
-    transformers==5.14.1's quantizer_torchao.py unconditionally reads
-    self.quantization_config.include_input_output_embeddings while loading
-    ANY torchao-quantized model, crashing with AttributeError before any GPU
-    work happens. Not fixable by constructing TorchAoConfig differently - the
-    attribute doesn't exist on this class at all. Set it directly rather than
-    pin a different diffusers/transformers version, which risks breaking the
-    other four models that already load cleanly under this exact pair.
+    Defensive attribute set, kept even after reverting to pinned diffusers==
+    0.39.0: a diffusers git-dev-source build (temporarily used for
+    Z-Image-Turbo, since dropped - see MODELS' comment) had a TorchAoConfig
+    missing include_input_output_embeddings entirely, which crashed
+    transformers==5.14.1's quantizer_torchao.py (reads that attribute
+    unconditionally) before any GPU work happened - not fixable by
+    constructing TorchAoConfig differently, the attribute didn't exist on
+    that build at all. Whether the pinned 0.39.0 release has the same gap is
+    untested - flux2dev's quantization path was never actually GPU-verified
+    even in the original Stage 0 setup (flux2dev was "future candidate, not
+    yet tested" per the plan doc). Setting it explicitly is a harmless no-op
+    if 0.39.0 already sets it correctly, and a real fix if it doesn't.
     False = don't additionally quantize embedding layers, the conservative
     default (preserves embedding precision; only the flagged components
     above get fp8).
