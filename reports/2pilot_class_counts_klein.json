@@ -1,0 +1,25 @@
+{
+  "sam3": {
+    "0": {
+      "short_name": "starfish",
+      "instance_count": 93,
+      "image_count": 29,
+      "mean_instances_per_image_present": 3.206896551724138,
+      "mean_confidence": 0.9512243857179059
+    },
+    "1": {
+      "short_name": "sea urchin",
+      "instance_count": 102,
+      "image_count": 28,
+      "mean_instances_per_image_present": 3.642857142857143,
+      "mean_confidence": 0.7747166213137378
+    },
+    "2": {
+      "short_name": "scallop",
+      "instance_count": 139,
+      "image_count": 28,
+      "mean_instances_per_image_present": 4.964285714285714,
+      "mean_confidence": 0.8965157180975708
+    }
+  }
+}

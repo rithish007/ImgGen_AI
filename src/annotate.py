@@ -87,8 +87,14 @@ def run_sam3(image_paths: list[Path], out_dir: Path, cfg: dict) -> dict[int, dic
     from PIL import Image
     from transformers import Sam3Model, Sam3Processor
 
-    print(f"loading {cfg['repo']} (Sam3Model)...")
-    model = Sam3Model.from_pretrained(cfg["repo"], device_map="auto")
+    # Single GPU, not device_map="auto" - SAM3 is small enough to never need
+    # sharding, and on a multi-GPU host "auto" splits the vision encoder
+    # across devices; its residual connections don't move tensors across
+    # that boundary, crashing with "Expected all tensors to be on the same
+    # device" on the first forward pass.
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"loading {cfg['repo']} (Sam3Model) on {device}...")
+    model = Sam3Model.from_pretrained(cfg["repo"]).to(device)
     processor = Sam3Processor.from_pretrained(cfg["repo"])
 
     prompts = detector_prompts()

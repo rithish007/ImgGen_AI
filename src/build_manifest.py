@@ -111,10 +111,31 @@ def build_smoke_rows() -> list[tuple[list[int], str, str]]:
     return [([c], "sparse", "close-up") for c in ALL_CLASSES]
 
 
-def build_balanced_rows(n_images: int) -> list[tuple[list[int], str, str]]:
+def build_balanced_rows(n_images: int, dr_rng: random.Random) -> list[tuple[list[int], str, str]]:
     """N rows, cycling through all 7 non-empty class combinations repeatedly
-    (rotating density/framing once per full cycle), for the 2-pilot
-    model-comparison test.
+    (class balance, unchanged), with density and framing drawn independently
+    per row from dr_rng instead of rotating in lockstep once per 7-row cycle.
+
+    FIXED (was the root cause of the "42% of every run is close-up+dense,
+    in rigid 7-row blocks" structural bias found in the 5-pilot cross-model
+    audit): the old version indexed density and framing by the SAME
+    `cycle % 3`, so they moved in lockstep - dense always paired with
+    close-up, moderate with mid, sparse with wide - and only changed once
+    per full 7-combo cycle (7 rows), not per row. At n=50 that produced
+    exactly 3 repeating 7-row blocks (rows 1-7 close-up+dense, 8-14
+    mid+moderate, 15-21 wide+sparse, then repeating) - 21/50 rows (42%)
+    close-up+dense, and every row inside a block textually identical on
+    density/framing. That's a real, structural contributor to the
+    "product photography, camera too close" complaint, independent of any
+    model or prompt wording - it affects klein/flux2dev/Hunyuan alike since
+    all three read framing/density from this same manifest.
+
+    Fix: density and framing are each an independent rng.choice() per row,
+    drawn from a SEPARATE rng (dr_rng, not the counts-allocation rng used
+    elsewhere in build_manifest()) so this change doesn't perturb the
+    class-count/seed sequence of any existing manifest. No more lockstep
+    correlation, no more multi-row blocking - each row's density/framing is
+    independent of its neighbours and of each other.
 
     This is deliberately DIFFERENT from prompts.py's generate_class_counts()
     (independent per-image random class selection, balanced only in
@@ -135,26 +156,29 @@ def build_balanced_rows(n_images: int) -> list[tuple[list[int], str, str]]:
         + [list(p) for p in combinations(ALL_CLASSES, 2)]
         + [list(ALL_CLASSES)]
     )
-    densities = sorted(DENSITY_RANGE)  # ["dense", "moderate", "sparse"] - order doesn't matter, just rotates
+    densities = sorted(DENSITY_RANGE)  # ["dense", "moderate", "sparse"]
     framings = ["close-up", "mid", "wide"]
 
     rows: list[tuple[list[int], str, str]] = []
-    cycle = 0
+    combo_i = 0
     while len(rows) < n_images:
-        density = densities[cycle % len(densities)]
-        framing = framings[cycle % len(framings)]
-        for combo in combos:
-            if len(rows) >= n_images:
-                break
-            rows.append((combo, density, framing))
-        cycle += 1
+        combo = combos[combo_i % len(combos)]
+        density = dr_rng.choice(densities)
+        framing = dr_rng.choice(framings)
+        rows.append((combo, density, framing))
+        combo_i += 1
     return rows
 
 
 def build_manifest(smoke: bool = False, balanced_n: int | None = None, stage_name: str = "1-pilot") -> dict:
     rng = random.Random(BASE_SEED)
     if balanced_n is not None:
-        rows = build_balanced_rows(balanced_n)
+        # Separate rng, seeded independently of the counts-allocation rng
+        # above, so fixing the density/framing draw doesn't perturb the
+        # existing count-allocation sequence for any manifest that keeps
+        # using this function unchanged otherwise.
+        dr_rng = random.Random(BASE_SEED + 1)
+        rows = build_balanced_rows(balanced_n, dr_rng)
         stage = stage_name
         id_prefix = stage_name
     else:
