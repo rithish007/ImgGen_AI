@@ -48,7 +48,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from prompts import build_prompt
+from prompts_flux2dev_v2 import build_prompt
 
 MODELS = {
     "klein": {
@@ -57,9 +57,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # Flux2KleinPipeline takes negative_prompt_embeds but no text-level
-        # negative_prompt. Exclusions are folded into the positive prompt.
-        "supports_negative": False,
         "approx_vram_gb": 29,
         "quantize_components": [],
         "lora": None,
@@ -70,9 +67,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # Same situation as klein: no text-level negative_prompt on this
-        # pipeline either (checked via inspect.signature(Flux2Pipeline.__call__)).
-        "supports_negative": False,
         # fp8 transformer (~32GB) + fp8 text encoder (~24GB) never coexist on
         # GPU at once - load_pipeline's offload fallback keeps peak usage near
         # whichever single component is larger, not their sum. BUT: RunPod
@@ -100,11 +94,6 @@ MODELS = {
         "steps": 28,
         "guidance": 4.5,
         "guidance_param": "guidance_scale",
-        # Expected True (standard SD pipeline CFG API, unlike the FLUX.2
-        # family above) but NOT pod-verified the way klein/flux2dev's False
-        # was - run inspect.signature(StableDiffusion3Pipeline.__call__) on
-        # the pod before trusting this.
-        "supports_negative": True,
         # 8B, bf16 - comfortably under 48GB with no offload/quantization.
         "approx_vram_gb": 16,
         "quantize_components": [],
@@ -118,7 +107,6 @@ MODELS = {
         # Qwen-Image's __call__ uses true_cfg_scale, not guidance_scale -
         # confirmed from its model card's example code.
         "guidance_param": "true_cfg_scale",
-        "supports_negative": True,  # confirmed on Qwen-Image's own model card (negative_prompt="")
         # Base Qwen-Image is 20B - at klein's own observed ~3.2GB/B bf16
         # overhead (29GB for 9B, weights+text-encoder+activations, not just
         # raw params) this could land anywhere from ~40GB to over 48GB.
@@ -135,7 +123,6 @@ MODELS = {
         "steps": 8,
         "guidance": 1.0,
         "guidance_param": "true_cfg_scale",
-        "supports_negative": True,
         "approx_vram_gb": 40,  # same base model as qwen_image - the LoRA adds negligible size
         "quantize_components": [],
         # Lightning is a LoRA on top of the base model, not a separate
@@ -272,24 +259,20 @@ def main() -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"model={args.model}  stage={manifest['stage']}  rows={len(rows)}")
-    print(f"steps={steps}  guidance={guidance}  resolution={args.resolution}")
-    print(f"negative_prompt supported: {cfg['supports_negative']}\n")
+    print(f"steps={steps}  guidance={guidance}  resolution={args.resolution}\n")
 
     if args.dry_run:
         for row in rows:
             counts = {int(k): v for k, v in row["requested_counts"].items()}
-            prompt, negative, metadata = build_prompt(
+            prompt, metadata = build_prompt(
                 counts,
                 seed=row["seed"],
                 density=row["density"],
                 framing=row["framing"],
-                supports_negative=cfg["supports_negative"],
             )
             print(f"--- row {row['row']}  {row['image_id']}  seed={row['seed']}")
             print(f"    classes: {row['class_names']}  counts: {counts}")
             print(f"    prompt: {prompt}")
-            if negative:
-                print(f"    negative: {negative}")
             print(f"    metadata: {asdict(metadata)}")
             print()
         return
@@ -301,12 +284,11 @@ def main() -> None:
     durations: list[float] = []
     for row in rows:
         counts = {int(k): v for k, v in row["requested_counts"].items()}
-        prompt, negative, metadata = build_prompt(
+        prompt, metadata = build_prompt(
             counts,
             seed=row["seed"],
             density=row["density"],
             framing=row["framing"],
-            supports_negative=cfg["supports_negative"],
         )
         generator = torch.Generator(device="cpu").manual_seed(row["seed"])
 
@@ -318,8 +300,6 @@ def main() -> None:
             cfg["guidance_param"]: guidance,
             "generator": generator,
         }
-        if cfg["supports_negative"]:
-            call_kwargs["negative_prompt"] = negative
 
         t0 = time.perf_counter()
         image = pipe(**call_kwargs).images[0]
@@ -336,7 +316,6 @@ def main() -> None:
                     "model": args.model,
                     "model_repo": cfg["repo"],
                     "prompt": prompt,
-                    "negative_prompt": negative,
                     "seed": row["seed"],
                     "steps": steps,
                     "guidance": guidance,

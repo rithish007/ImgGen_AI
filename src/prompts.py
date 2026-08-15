@@ -174,23 +174,39 @@ CLASSES: dict[int, dict[str, object]] = {
         # described as fully closed, exterior only, no interior/tissue
         # mentioned at all. A resting, undisturbed scallop is closed anyway -
         # this is not a less realistic description, it's a safer one.
+        # 0.5-smoke audit (seed 42003, both models): the arrangement-only
+        # burial cue ("partially buried at irregular locations") was ignored
+        # 7/7 times - every rendered scallop across both models sat fully
+        # exposed on top of the sand with zero sediment coverage. Moved the
+        # cue into every morphology variant too (was only 2 of 4) so it's
+        # stated twice per prompt regardless of which morphology gets drawn,
+        # instead of depending on the arrangement clause alone.
+        # No morphology variant specified shell colour at all (unlike
+        # starfish/urchin, which both do) - left entirely to each model's own
+        # prior, which is why flux2dev drew reddish-brown stripes and klein
+        # drew near-white in the same 2-pilot run. Anchored to cream/light
+        # brown (the real Pecten/Aequipecten range) in every variant below.
         "morphology": [
             (
-                "a living scallop with a fan-shaped shell, tightly closed, "
-                "clearly visible radiating ribs across the exterior"
+                "a living scallop with a fan-shaped shell, cream to light "
+                "brown in colour, tightly closed, clearly visible radiating "
+                "ribs across the exterior, the lower edge dusted with fine "
+                "sediment where it meets the seabed"
             ),
             (
-                "a living fan-shaped scallop shell, tightly closed, with "
-                "strong radial ribs, partially buried in sediment"
+                "a living fan-shaped scallop shell, cream to light brownish "
+                "in colour, tightly closed, with strong radial ribs, "
+                "partially buried in sediment"
             ),
             (
                 "a small living scallop with a ribbed fan-shaped shell, "
-                "tightly closed, naturally covered by a thin layer of sediment"
+                "light brown to cream in colour, tightly closed, naturally "
+                "covered by a thin layer of sediment"
             ),
             (
                 "a living scallop with a textured fan-shaped ribbed shell, "
-                "tightly closed, partially buried so that only part of the "
-                "shell is exposed"
+                "cream or light brownish in colour, tightly closed, "
+                "partially buried so that only part of the shell is exposed"
             ),
         ],
 
@@ -274,6 +290,34 @@ SUBSTRATE_VARIATIONS = [
     "patches of exposed rock surrounded by fine sediment",
 
     "slightly uneven sediment with small stones and natural debris",
+]
+
+
+# 2-pilot plan doc Q4 ("can the rock-formation pool be added to the prompt,
+# and how?"), deliberately deferred out of manifests/2-pilot.json so that run
+# tested only the bivalve-guard fix, not two changes at once. SCENE_TEMPLATES
+# already gestures at rocks generically ("irregular rocks", "rocky ledges")
+# and the large boulders/ledges already seen naturally in generated images are
+# left alone - this pool is deliberately scoped to smaller-scale material
+# (cobbles, rubble, pebbles, small boulders) as an independent axis on top of
+# that, same pattern as ALGAE_VARIATIONS/SUBSTRATE_VARIATIONS, not a
+# replacement for it. Not coupled to per-class arrangements yet (e.g.
+# "resting beside a low rock ledge" doesn't reference which formation is
+# actually in-scene) - a reasonable follow-up once this pool alone is
+# verified not to break anything, not a day-one requirement.
+ROCK_FORMATIONS = [
+
+    "a cluster of rounded cobbles scattered loosely across the seabed",
+
+    "a small pile of angular rubble formed from broken rock fragments",
+
+    "a scatter of loose pebbles mixed into the surrounding sediment",
+
+    "a group of small boulders resting on the seabed, spaced irregularly apart",
+
+    "a mix of pebbles and small cobbles collected in a shallow depression",
+
+    "a low pile of rubble and small boulders partially settled into the sediment",
 ]
 
 
@@ -609,6 +653,34 @@ FRAMING = {
 }
 
 
+# 2-pilot audit (klein, manifests/2-pilot.json, 50 rows): every row combining
+# framing="wide" with density="sparse" overshot its requested instance count
+# badly (2x-11x measured; worst case row 20, 1 scallop requested -> 20
+# detected), while every other framing/density combination stayed close to
+# requested. SCENE_DENSITIES/arrangement text describes a spacing PATTERN
+# ("sparsely scattered", "substantial irregular spacing"), not an absolute
+# count, and "wide" framing exposes far more seabed area than close-up/mid -
+# the model appears to apply that pattern per unit of visible area rather
+# than honouring the explicit numeric count from class_phrase(). Scallop was
+# worst hit because its arrangement text has no natural boundary ("scattered
+# across open sediment"); starfish/urchin arrangements reference a specific
+# rock/crevice, which caps them somewhat.
+#
+# Deliberately NOT dropping the wide+sparse combination: that would lose real
+# scene-scale diversity and wouldn't fix anything, since the same weak
+# numeracy is presumably still there at other density levels, just less
+# visible. Reinforcing the absolute count only when framing is wide instead -
+# UNVERIFIED as an actual fix (diffusion models have limited instruction-
+# following for this kind of meta/negation instruction); re-run the specific
+# rows that overshot in the 2-pilot (17, 19, 20, 21, 36, 39, 40, 41, 42) after
+# this change and compare detected-vs-requested before trusting it at scale.
+FRAMING_COUNT_ANCHOR = (
+    "The stated number of individuals for each organism is a strict total "
+    "for the entire frame, not a density to repeat across the visible "
+    "seabed - a wider view must not add extra individuals beyond that total."
+)
+
+
 # ============================================================================
 # OBJECT COUNT RANGES
 # ============================================================================
@@ -672,6 +744,7 @@ class PromptMetadata:
     scene_template_index: int
     algae_variation_index: int
     substrate_variation_index: int
+    rock_formation_index: int
     lighting_index: int
     composition_index: int
     camera_fov_index: int
@@ -896,6 +969,8 @@ def build_prompt(
 
     substrate, substrate_idx = _choose(rng, SUBSTRATE_VARIATIONS)
 
+    rock_formation, rock_formation_idx = _choose(rng, ROCK_FORMATIONS)
+
     lighting, lighting_idx = _choose(rng, LIGHTING_CONDITIONS)
 
     composition, composition_idx = _choose(rng, COMPOSITIONS)
@@ -966,7 +1041,8 @@ def build_prompt(
         # 2. ENVIRONMENT
         (
             f"Temperate coastal seabed consisting of {scene_template}. "
-            f"The habitat contains {algae} and {substrate}."
+            f"The habitat contains {algae} and {substrate}. "
+            f"{rock_formation.capitalize()} is present in the scene."
         ),
 
         # 3. COMPOSITION
@@ -1018,6 +1094,7 @@ def build_prompt(
         # 11. FRAMING
         (
             f"{FRAMING[framing]}."
+            + (f" {FRAMING_COUNT_ANCHOR}" if framing == "wide" else "")
         ),
 
         # 12. FINAL REALISM ANCHOR
@@ -1056,6 +1133,7 @@ def build_prompt(
         scene_template_index=scene_idx,
         algae_variation_index=algae_idx,
         substrate_variation_index=substrate_idx,
+        rock_formation_index=rock_formation_idx,
         lighting_index=lighting_idx,
         composition_index=composition_idx,
         camera_fov_index=camera_fov_idx,

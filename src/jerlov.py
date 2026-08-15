@@ -86,12 +86,18 @@ def beta_rgb(water_type: str, beta_b: float) -> tuple[float, float, float]:
 #   - The natural source is a Jerlov depth-irradiance chart (K_d(lambda) per
 #     water type). Williamson & Hollins 2023 ("Depth profiles of Jerlov water
 #     types", Limnol. Oceanogr. Lett. 8:781-788) was checked directly (PDF
-#     read in full) and does NOT contain this: it studies whether a water
-#     column's Jerlov TYPE classification drifts with depth, not Kd magnitude
-#     by wavelength. Its own Table 3 (reconstructed from Jerlov 1976 fig. 71)
-#     stops at type "1C" - no 3C/5C data exists there either. The actual
-#     Kd(lambda) numbers live in a supplementary figshare dataset this PDF
-#     references but does not contain.
+#     read in full, again on 2026-08-14 with the user's own copy) and does
+#     NOT contain this: both of its tables study whether a water column's
+#     Jerlov TYPE CLASSIFICATION drifts with depth, not Kd magnitude by
+#     wavelength - a type-drift table, not a magnitude table, regardless of
+#     type coverage. Table 3 (reprocessed from Jerlov 1976's fig. 71 chart)
+#     stops at type "1C". Table 2 (the paper's own primary result, from 2571
+#     real WOOD-database campaigns) goes further - "3C to 70m, 5C and 7C to
+#     20m" - but this doesn't change the conclusion below: both tables' finest
+#     resolution is a single undivided 0-10m near-surface bucket, so neither
+#     one has ANY sub-resolution inside 0-10m for ANY type, 1C/3C/5C included.
+#     The actual Kd(lambda) magnitude numbers live in a supplementary figshare
+#     dataset this PDF references but does not contain.
 #   - One thing that IS useful from that paper: its finest depth resolution
 #     near the surface is a single 0-10m bucket. Our pilot's entire d range
 #     (0-5m) sits inside that one bucket - there is no published evidence of

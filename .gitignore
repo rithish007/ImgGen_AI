@@ -2,6 +2,7 @@
 ImgGenEnv/
 venv/
 .venv/
+.venv_sam3/
 
 # Python
 __pycache__/
@@ -15,6 +16,7 @@ __pycache__/
 *.pth
 *.bin
 *.gguf
+*.pt
 .cache/
 hf_cache/
 
@@ -37,3 +39,4 @@ dataset/
 .env
 *.pem
 *_token
+.hf_env

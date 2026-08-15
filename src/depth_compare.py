@@ -53,10 +53,33 @@ MODELS = {
     "da_v2_large": {
         "repo": "depth-anything/Depth-Anything-V2-Large-hf",
         "metric": False,
+        "kind": "transformers",
     },
     "depth_pro": {
         "repo": "apple/DepthPro-hf",
         "metric": True,
+        "kind": "transformers",
+    },
+    # Added 2026-08-07: Ultralytics YOLO26's native depth task (shipped
+    # 2026-07-29, https://docs.ultralytics.com/tasks/depth) - a completely
+    # different loading/inference API (ultralytics package, not a
+    # transformers pipeline), hence the separate run_yolo26() path below and
+    # the "kind" dispatch in main(). Metric depth like Depth Pro, but a much
+    # smaller/faster model family (n/s/m/l/x) - included here specifically to
+    # see whether that size tradeoff costs real accuracy on this domain.
+    "yolo26n_depth": {
+        "repo": "yolo26n-depth.pt",
+        "metric": True,
+        "kind": "ultralytics",
+    },
+    # Added 2026-08-08: nano's edge maps were visibly noisier than DA-V2/Depth
+    # Pro at the near-field object-boundary level (fuzzy starfish outlines,
+    # less clean rock separation) - x is the largest variant in the family
+    # (109MB vs nano's 12MB), included to see whether that closes the gap.
+    "yolo26x_depth": {
+        "repo": "yolo26x-depth.pt",
+        "metric": True,
+        "kind": "ultralytics",
     },
 }
 
@@ -83,6 +106,29 @@ def run_model(repo: str, image_paths: list[Path]) -> tuple[list, list[float]]:
 
     del pipe
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    return depth_maps, durations
+
+
+def run_yolo26_depth(weights: str, image_paths: list[Path]) -> tuple[list, list[float]]:
+    import torch
+    from ultralytics import YOLO
+
+    print(f"loading {weights} (ultralytics)...")
+    model = YOLO(weights)
+
+    depth_maps = []
+    durations = []
+    for path in image_paths:
+        t0 = time.perf_counter()
+        results = model(str(path), verbose=False)
+        elapsed = time.perf_counter() - t0
+        # result.depth.data is already an (H, W) torch.Tensor in metres -
+        # same convention run_model() returns, so downstream save_* functions
+        # (.squeeze().to(torch.float32).cpu().numpy()) work unmodified.
+        depth_maps.append(results[0].depth.data)
+        durations.append(elapsed)
+        print(f"  {path.name}: {elapsed:.2f}s")
+
     return depth_maps, durations
 
 
@@ -248,7 +294,10 @@ def main() -> None:
     results = {}
     timings = {}
     for key, cfg in MODELS.items():
-        depth_maps, durations = run_model(cfg["repo"], args.images)
+        if cfg.get("kind") == "ultralytics":
+            depth_maps, durations = run_yolo26_depth(cfg["repo"], args.images)
+        else:
+            depth_maps, durations = run_model(cfg["repo"], args.images)
         results[key] = depth_maps
         timings[key] = durations
 

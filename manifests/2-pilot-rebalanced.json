@@ -1,0 +1,1025 @@
+{
+  "stage": "2-pilot-rebalanced",
+  "base_seed": 42,
+  "class_map": {
+    "0": {
+      "duo_label": "starfish",
+      "short": "starfish"
+    },
+    "1": {
+      "duo_label": "echinus",
+      "short": "sea urchin"
+    },
+    "2": {
+      "duo_label": "scallop",
+      "short": "scallop"
+    }
+  },
+  "rows": [
+    {
+      "row": 1,
+      "image_id": "2-pilot-rebalanced_001",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 5
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42001
+    },
+    {
+      "row": 2,
+      "image_id": "2-pilot-rebalanced_002",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42002
+    },
+    {
+      "row": 3,
+      "image_id": "2-pilot-rebalanced_003",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 6
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42003
+    },
+    {
+      "row": 4,
+      "image_id": "2-pilot-rebalanced_004",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42004
+    },
+    {
+      "row": 5,
+      "image_id": "2-pilot-rebalanced_005",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 4,
+        "2": 2
+      },
+      "total_instances": 6,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42005
+    },
+    {
+      "row": 6,
+      "image_id": "2-pilot-rebalanced_006",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 1,
+        "2": 2
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42006
+    },
+    {
+      "row": 7,
+      "image_id": "2-pilot-rebalanced_007",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1,
+        "2": 1
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42007
+    },
+    {
+      "row": 8,
+      "image_id": "2-pilot-rebalanced_008",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42008
+    },
+    {
+      "row": 9,
+      "image_id": "2-pilot-rebalanced_009",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 3
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42009
+    },
+    {
+      "row": 10,
+      "image_id": "2-pilot-rebalanced_010",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42010
+    },
+    {
+      "row": 11,
+      "image_id": "2-pilot-rebalanced_011",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 2,
+        "1": 2
+      },
+      "total_instances": 4,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42011
+    },
+    {
+      "row": 12,
+      "image_id": "2-pilot-rebalanced_012",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "2": 4
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42012
+    },
+    {
+      "row": 13,
+      "image_id": "2-pilot-rebalanced_013",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 2,
+        "2": 3
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42013
+    },
+    {
+      "row": 14,
+      "image_id": "2-pilot-rebalanced_014",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1,
+        "2": 2
+      },
+      "total_instances": 4,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42014
+    },
+    {
+      "row": 15,
+      "image_id": "2-pilot-rebalanced_015",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 7
+      },
+      "total_instances": 7,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42015
+    },
+    {
+      "row": 16,
+      "image_id": "2-pilot-rebalanced_016",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42016
+    },
+    {
+      "row": 17,
+      "image_id": "2-pilot-rebalanced_017",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 5
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42017
+    },
+    {
+      "row": 18,
+      "image_id": "2-pilot-rebalanced_018",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42018
+    },
+    {
+      "row": 19,
+      "image_id": "2-pilot-rebalanced_019",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 2,
+        "2": 3
+      },
+      "total_instances": 5,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42019
+    },
+    {
+      "row": 20,
+      "image_id": "2-pilot-rebalanced_020",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 4,
+        "2": 1
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42020
+    },
+    {
+      "row": 21,
+      "image_id": "2-pilot-rebalanced_021",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 3,
+        "2": 4
+      },
+      "total_instances": 8,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42021
+    },
+    {
+      "row": 22,
+      "image_id": "2-pilot-rebalanced_022",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42022
+    },
+    {
+      "row": 23,
+      "image_id": "2-pilot-rebalanced_023",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 5
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42023
+    },
+    {
+      "row": 24,
+      "image_id": "2-pilot-rebalanced_024",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 7
+      },
+      "total_instances": 7,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42024
+    },
+    {
+      "row": 25,
+      "image_id": "2-pilot-rebalanced_025",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 3,
+        "1": 3
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42025
+    },
+    {
+      "row": 26,
+      "image_id": "2-pilot-rebalanced_026",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "2": 1
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42026
+    },
+    {
+      "row": 27,
+      "image_id": "2-pilot-rebalanced_027",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 3,
+        "2": 4
+      },
+      "total_instances": 7,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42027
+    },
+    {
+      "row": 28,
+      "image_id": "2-pilot-rebalanced_028",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1,
+        "2": 1
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42028
+    },
+    {
+      "row": 29,
+      "image_id": "2-pilot-rebalanced_029",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42029
+    },
+    {
+      "row": 30,
+      "image_id": "2-pilot-rebalanced_030",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 5
+      },
+      "total_instances": 5,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42030
+    },
+    {
+      "row": 31,
+      "image_id": "2-pilot-rebalanced_031",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 5
+      },
+      "total_instances": 5,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42031
+    },
+    {
+      "row": 32,
+      "image_id": "2-pilot-rebalanced_032",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42032
+    },
+    {
+      "row": 33,
+      "image_id": "2-pilot-rebalanced_033",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 2,
+        "2": 4
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42033
+    },
+    {
+      "row": 34,
+      "image_id": "2-pilot-rebalanced_034",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 2,
+        "2": 1
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42034
+    },
+    {
+      "row": 35,
+      "image_id": "2-pilot-rebalanced_035",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 2,
+        "1": 1,
+        "2": 2
+      },
+      "total_instances": 5,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42035
+    },
+    {
+      "row": 36,
+      "image_id": "2-pilot-rebalanced_036",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 7
+      },
+      "total_instances": 7,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42036
+    },
+    {
+      "row": 37,
+      "image_id": "2-pilot-rebalanced_037",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 4
+      },
+      "total_instances": 4,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42037
+    },
+    {
+      "row": 38,
+      "image_id": "2-pilot-rebalanced_038",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 2
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42038
+    },
+    {
+      "row": 39,
+      "image_id": "2-pilot-rebalanced_039",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 3,
+        "1": 2
+      },
+      "total_instances": 5,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42039
+    },
+    {
+      "row": 40,
+      "image_id": "2-pilot-rebalanced_040",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 4,
+        "2": 2
+      },
+      "total_instances": 6,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42040
+    },
+    {
+      "row": 41,
+      "image_id": "2-pilot-rebalanced_041",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 1,
+        "2": 1
+      },
+      "total_instances": 2,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42041
+    },
+    {
+      "row": 42,
+      "image_id": "2-pilot-rebalanced_042",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 1,
+        "1": 1,
+        "2": 1
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42042
+    },
+    {
+      "row": 43,
+      "image_id": "2-pilot-rebalanced_043",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 8
+      },
+      "total_instances": 8,
+      "density": "dense",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42043
+    },
+    {
+      "row": 44,
+      "image_id": "2-pilot-rebalanced_044",
+      "class_ids": [
+        1
+      ],
+      "class_names": [
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "1": 6
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42044
+    },
+    {
+      "row": 45,
+      "image_id": "2-pilot-rebalanced_045",
+      "class_ids": [
+        2
+      ],
+      "class_names": [
+        "scallop"
+      ],
+      "requested_counts": {
+        "2": 4
+      },
+      "total_instances": 4,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "wide",
+      "seed": 42045
+    },
+    {
+      "row": 46,
+      "image_id": "2-pilot-rebalanced_046",
+      "class_ids": [
+        0,
+        1
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin"
+      ],
+      "requested_counts": {
+        "0": 5,
+        "1": 1
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42046
+    },
+    {
+      "row": 47,
+      "image_id": "2-pilot-rebalanced_047",
+      "class_ids": [
+        0,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 5,
+        "2": 1
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "mid",
+      "seed": 42047
+    },
+    {
+      "row": 48,
+      "image_id": "2-pilot-rebalanced_048",
+      "class_ids": [
+        1,
+        2
+      ],
+      "class_names": [
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "1": 2,
+        "2": 1
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42048
+    },
+    {
+      "row": 49,
+      "image_id": "2-pilot-rebalanced_049",
+      "class_ids": [
+        0,
+        1,
+        2
+      ],
+      "class_names": [
+        "starfish",
+        "sea urchin",
+        "scallop"
+      ],
+      "requested_counts": {
+        "0": 2,
+        "1": 2,
+        "2": 2
+      },
+      "total_instances": 6,
+      "density": "moderate",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42049
+    },
+    {
+      "row": 50,
+      "image_id": "2-pilot-rebalanced_050",
+      "class_ids": [
+        0
+      ],
+      "class_names": [
+        "starfish"
+      ],
+      "requested_counts": {
+        "0": 3
+      },
+      "total_instances": 3,
+      "density": "sparse",
+      "density_floor_applied": false,
+      "framing": "close-up",
+      "seed": 42050
+    }
+  ]
+}

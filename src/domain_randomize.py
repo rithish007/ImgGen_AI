@@ -3,6 +3,21 @@ formation model, CVPR 2018) plus three camera-level effects Jerlov doesn't
 cover. Deterministic, pixel-only - no model weights, no GPU. Runs entirely on
 the clean Stage 1 images plus Stage 3a's range maps.
 
+TWO PROFILES, selected by --profile, for the A/B/C dataset-comparison plan:
+    placeholder (default) - dataset B. Uses jerlov.py exactly as it has always
+        been - {1C,3C,5C}, the borrowed danaberman/underwater-hl ratio table,
+        one uncited Kd anchor, global BETA_B_FLOOR/CEIL. Frozen: zero real-
+        world input from the AT-reverse-engineering research thread. Produces
+        byte-identical output to pre-profile-flag behaviour for the same seed.
+    anchored - dataset C. Uses jerlov_anchored.py - {1C,3C,5C,7C}, real
+        per-type beta and Kd from Solonenko & Mobley 2015 (peer-reviewed,
+        primary-sourced), beta_b's magnitude tied to the chosen water_type
+        (+/- ANCHOR_WIDTH_FRAC) rather than one shared global range. See
+        jerlov_anchored.py's module docstring for the full source trail and
+        the one known gap (5C's red channel uses a 575nm proxy, not 600nm -
+        the original paper's table has a printing error there, confirmed
+        against the primary source, not an extraction issue on this end).
+
     I_c(x,y) = J_c(x,y) * exp(-beta_c^D * z(x,y))
              + B_c^inf   * (1 - exp(-beta_c^B * z(x,y)))
                |_______direct signal_______|   |_____backscatter_____|
@@ -79,13 +94,20 @@ import math
 import random
 from pathlib import Path
 
+import jerlov_anchored
 from jerlov import COASTAL_TYPES, beta_rgb, kd_rgb
 
-BETA_B_FLOOR = 0.05  # m^-1
-BETA_B_CEIL = 0.25  # m^-1 - global cap even for the closest shots
+BETA_B_FLOOR = 0.05  # m^-1 - placeholder profile only
+BETA_B_CEIL = 0.25  # m^-1 - placeholder profile only, global cap even for the closest shots
+MIN_BETA_B_ABSOLUTE = 0.01  # m^-1 - anchored profile only, true degenerate-case floor (see sample_params)
 VISIBILITY_FLOOR_RANGE = (0.08, 0.45)  # sampled per image - see module docstring
 B_REF_RANGE = (0.5, 1.0)
 D_RANGE = (0.0, 5.0)  # m, per the plan doc's pilot value
+
+PROFILE_WATER_TYPES = {
+    "placeholder": sorted(COASTAL_TYPES),
+    "anchored": sorted(jerlov_anchored.COASTAL_TYPES_ANCHORED),
+}
 
 SIGMA_READ_RANGE = (0.002, 0.01)
 SIGMA_SHOT_RANGE = (0.01, 0.05)
@@ -96,28 +118,56 @@ VIGNETTE_STRENGTH_RANGE = (0.0, 0.35)
 VIGNETTE_CENTER_OFFSET_RANGE = (-0.15, 0.15)  # fraction of half-width/height
 
 
-def z_far_beta_b_cap(z_far: float, water_type: str, visibility_floor: float) -> float:
+def z_far_beta_b_cap(z_far: float, beta_br: float, visibility_floor: float) -> float:
     """Largest beta_b that keeps the red channel (fastest-attenuating, via
     beta_br) at or above visibility_floor at this image's own z_far.
 
     exp(-beta_r * z_far) >= floor, beta_r = beta_b / beta_br
     => beta_b <= -ln(floor) * beta_br / z_far
+
+    beta_br is passed in rather than looked up here, so this is shared between
+    both profiles (placeholder's jerlov.COASTAL_TYPES and anchored's
+    jerlov_anchored.COASTAL_TYPES_ANCHORED have different beta_br values).
     """
-    beta_br = COASTAL_TYPES[water_type].beta_br
     return -math.log(visibility_floor) * beta_br / z_far
 
 
-def sample_params(seed: int, z_far: float) -> dict:
+def sample_params(seed: int, z_far: float, profile: str = "placeholder") -> dict:
     rng = random.Random(seed)
-    water_type = rng.choice(sorted(COASTAL_TYPES))
+    water_type = rng.choice(PROFILE_WATER_TYPES[profile])
     visibility_floor = rng.uniform(*VISIBILITY_FLOOR_RANGE)
-    cap = min(BETA_B_CEIL, z_far_beta_b_cap(z_far, water_type, visibility_floor))
-    cap = max(cap, BETA_B_FLOOR)  # degenerate-z_far safety net
+
+    if profile == "placeholder":
+        beta_br = COASTAL_TYPES[water_type].beta_br
+        beta_floor, beta_ceil = BETA_B_FLOOR, BETA_B_CEIL
+        cap = min(beta_ceil, z_far_beta_b_cap(z_far, beta_br, visibility_floor))
+        cap = max(cap, beta_floor)  # degenerate-z_far safety net (unchanged - this branch
+        # is untouched by the anchored-profile fix below; BETA_B_FLOOR=0.05 never exceeds
+        # the visibility-safe cap in practice, so this line is a true edge-case fallback here)
+    else:
+        beta_br = jerlov_anchored.COASTAL_TYPES_ANCHORED[water_type].beta_br
+        anchor_floor, anchor_ceil = jerlov_anchored.beta_b_anchor_range(water_type)
+        # BUG FIXED HERE (2026-08-15, after the first anchored test run produced images
+        # with no visible content): the anchor floor can legitimately exceed the
+        # visibility-safe ceiling (e.g. 7C + a long z_far "wide" shot) - real 7C water
+        # genuinely isn't visible that far. The visibility_floor constraint is the hard
+        # physical invariant and must win; the type anchor is an aspirational centre that
+        # yields when the two conflict, not the other way round. Previously `cap =
+        # max(cap, beta_floor)` forced beta_b PAST the visibility-safe ceiling instead -
+        # confirmed on the 50-image test set: 35/50 draws collapsed to beta_b == the
+        # anchor floor exactly, 27/50 ended with <50% of visibility_floor's intended red
+        # signal at z_far. Fix: shrink the floor down to meet the cap instead of pushing
+        # the cap up past it.
+        cap = max(min(anchor_ceil, z_far_beta_b_cap(z_far, beta_br, visibility_floor)), MIN_BETA_B_ABSOLUTE)
+        beta_floor = max(min(anchor_floor, cap), MIN_BETA_B_ABSOLUTE)
+
     return {
+        "profile": profile,
         "water_type": water_type,
         "visibility_floor": visibility_floor,
         "d": rng.uniform(*D_RANGE),
-        "beta_b": rng.uniform(BETA_B_FLOOR, cap),
+        "beta_b": rng.uniform(beta_floor, cap),
+        "beta_b_floor_used": beta_floor,
         "beta_b_cap_used": cap,
         "b_ref": rng.uniform(*B_REF_RANGE),
         "sigma_read": rng.uniform(*SIGMA_READ_RANGE),
@@ -139,8 +189,12 @@ def transform_image(j_img, z, params: dict):
     """
     import numpy as np
 
-    beta_r, beta_g, beta_b_ch = beta_rgb(params["water_type"], params["beta_b"])
-    kd_r, kd_g, kd_b = kd_rgb(params["water_type"])
+    if params["profile"] == "placeholder":
+        beta_r, beta_g, beta_b_ch = beta_rgb(params["water_type"], params["beta_b"])
+        kd_r, kd_g, kd_b = kd_rgb(params["water_type"])
+    else:
+        beta_r, beta_g, beta_b_ch = jerlov_anchored.beta_rgb(params["water_type"], params["beta_b"])
+        kd_r, kd_g, kd_b = jerlov_anchored.kd_rgb(params["water_type"])
     d = params["d"]
     b_ref = params["b_ref"]
 
@@ -154,10 +208,12 @@ def transform_image(j_img, z, params: dict):
     dr = np.clip(dr, 0.0, 1.0)
 
     resolved = {
+        "profile": params["profile"],
         "water_type": params["water_type"],
         "visibility_floor": params["visibility_floor"],
         "vertical_depth_d_m": d,
         "beta_b_sampled": params["beta_b"],
+        "beta_b_floor_used": params["beta_b_floor_used"],
         "beta_b_cap_used": params["beta_b_cap_used"],
         "beta_D_rgb": [beta_r, beta_g, beta_b_ch],
         "beta_B_rgb": [beta_r, beta_g, beta_b_ch],
@@ -235,10 +291,16 @@ def main() -> None:
     ap.add_argument("--range-dir", type=Path, default=None)
     ap.add_argument("--out-dir", type=Path, default=None)
     ap.add_argument("--config-dir", type=Path, default=Path("configs"))
+    ap.add_argument(
+        "--profile", choices=["placeholder", "anchored"], default="placeholder",
+        help="placeholder = dataset B (frozen, current behaviour, default); "
+             "anchored = dataset C (Solonenko & Mobley 2015-derived, see jerlov_anchored.py)",
+    )
     args = ap.parse_args()
 
+    suffix = "_dr" if args.profile == "placeholder" else "_anchored_dr"
     range_dir = args.range_dir or args.images_dir.parent / "range"
-    out_dir = args.out_dir or args.images_dir.parent / "dr"
+    out_dir = args.out_dir or args.images_dir.parent / ("dr" if args.profile == "placeholder" else "dr_anchored")
     out_dir.mkdir(parents=True, exist_ok=True)
     args.config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -263,11 +325,11 @@ def main() -> None:
 
         j_img = np.asarray(Image.open(path).convert("RGB")).astype(np.float64) / 255.0
 
-        params = sample_params(seed, z_meta["z_far"])
+        params = sample_params(seed, z_meta["z_far"], profile=args.profile)
         dr, resolved = transform_image(j_img, z, params)
         dr = apply_camera_effects(dr, params, seed)
 
-        dr_path = out_dir / f"{stem}_dr.png"
+        dr_path = out_dir / f"{stem}{suffix}.png"
         Image.fromarray((dr * 255).astype(np.uint8)).save(dr_path)
 
         camera_effects = {
@@ -289,11 +351,11 @@ def main() -> None:
             "z_far": z_meta["z_far"],
             **resolved,
         }
-        (args.config_dir / f"{stem}_dr.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+        (args.config_dir / f"{stem}{suffix}.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
 
         print(f"[{i:>2}/{len(image_paths)}] {stem}  type={params['water_type']}  d={params['d']:.2f}m  -> {dr_path}")
 
-    print(f"\ndone: {len(image_paths)} DR'd images -> {out_dir}, configs -> {args.config_dir}")
+    print(f"\ndone: {len(image_paths)} DR'd images ({args.profile}) -> {out_dir}, configs -> {args.config_dir}")
 
 
 if __name__ == "__main__":
