@@ -163,8 +163,17 @@ def main() -> None:
     durations: list[float] = []
     heights: list[int] = []
     sizes_seen: dict[str, int] = {}
+    skipped = 0
 
     for row in rows:
+        stem = f"{row['image_id']}_hunyuan"
+        png_path = out_dir / f"{stem}.png"
+        json_path = out_dir / f"{stem}.json"
+        if png_path.exists() and json_path.exists():
+            skipped += 1
+            print(f"[{row['row']:>2}/{len(rows)}] {stem}.png  SKIP (already exists)")
+            continue
+
         prompt, metadata = _build_for_row(row)
         heights.append(metadata.camera_height_m)
 
@@ -176,8 +185,7 @@ def main() -> None:
         actual_size = f"{image.size[0]}x{image.size[1]}"
         sizes_seen[actual_size] = sizes_seen.get(actual_size, 0) + 1
 
-        stem = f"{row['image_id']}_hunyuan"
-        image.save(out_dir / f"{stem}.png")
+        image.save(png_path)
 
         sidecar = {
             "image_id": row["image_id"],
@@ -202,7 +210,7 @@ def main() -> None:
             "prompt_metadata": asdict(metadata),
         }
 
-        (out_dir / f"{stem}.json").write_text(
+        json_path.write_text(
             json.dumps(sidecar, indent=2, default=str),
             encoding="utf-8",
         )
@@ -214,11 +222,11 @@ def main() -> None:
         )
 
     total = sum(durations)
+    print(f"\ngenerated: {len(durations)}  skipped (already existed): {skipped}  -> {out_dir}")
     if durations:
         height_counts = {height: heights.count(height) for height in sorted(set(heights))}
         print(
-            f"\ndone: {len(durations)} images in {total/60:.1f} min "
-            f"({total/len(durations):.1f}s/image) -> {out_dir}"
+            f"{total/60:.1f} min ({total/len(durations):.1f}s/image)"
         )
         print(f"survey heights used: {height_counts}")
         print(f"image sizes produced: {sizes_seen}")
