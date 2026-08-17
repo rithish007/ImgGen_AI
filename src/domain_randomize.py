@@ -102,7 +102,17 @@ BETA_B_CEIL = 0.25  # m^-1 - placeholder profile only, global cap even for the c
 MIN_BETA_B_ABSOLUTE = 0.01  # m^-1 - anchored profile only, true degenerate-case floor (see sample_params)
 VISIBILITY_FLOOR_RANGE = (0.08, 0.45)  # sampled per image - see module docstring
 B_REF_RANGE = (0.5, 1.0)
-D_RANGE = (0.0, 5.0)  # m, per the plan doc's pilot value
+D_RANGE = (0.0, 5.0)  # m, per the plan doc's pilot value - placeholder profile only, unchanged
+D_RANGE_ANCHORED = (2.0, 7.0)  # m - anchored profile only, engineering decision (2026-08-15),
+# not literature-sourced: a depth-distribution search for shallow coastal benthic survey
+# work came back too generic to use (operational ROV/AUV ranges like "2-60m", not the
+# shot-distribution this parameter actually needs). Raised from placeholder's U(0,5)
+# specifically because low d gives near-zero colour differentiation regardless of
+# water_type (e.g. 5C's R/G/B spread is ~4% at d=0.5m vs ~35% at d=5m) - U(2,7) removes
+# the near-zero tail. Kept out of the placeholder profile deliberately - D_RANGE is
+# shared plumbing, not literature, but this specific fix came out of this research
+# thread's analysis, so it follows the same "C gets it, B stays frozen" split as
+# everything else here rather than silently changing B's behaviour too.
 
 PROFILE_WATER_TYPES = {
     "placeholder": sorted(COASTAL_TYPES),
@@ -161,11 +171,12 @@ def sample_params(seed: int, z_far: float, profile: str = "placeholder") -> dict
         cap = max(min(anchor_ceil, z_far_beta_b_cap(z_far, beta_br, visibility_floor)), MIN_BETA_B_ABSOLUTE)
         beta_floor = max(min(anchor_floor, cap), MIN_BETA_B_ABSOLUTE)
 
+    d_range = D_RANGE if profile == "placeholder" else D_RANGE_ANCHORED
     return {
         "profile": profile,
         "water_type": water_type,
         "visibility_floor": visibility_floor,
-        "d": rng.uniform(*D_RANGE),
+        "d": rng.uniform(*d_range),
         "beta_b": rng.uniform(beta_floor, cap),
         "beta_b_floor_used": beta_floor,
         "beta_b_cap_used": cap,
@@ -277,7 +288,8 @@ def apply_sensor_noise(img, sigma_read: float, sigma_shot: float, depth_gain: fl
 def apply_camera_effects(dr, params: dict, seed: int):
     import numpy as np
 
-    depth_gain = 1.0 + NOISE_DEPTH_GAIN * (params["d"] / D_RANGE[1])
+    d_max = D_RANGE[1] if params["profile"] == "placeholder" else D_RANGE_ANCHORED[1]
+    depth_gain = 1.0 + NOISE_DEPTH_GAIN * (params["d"] / d_max)
 
     out = apply_vignette(dr, params["vignette_strength"], params["vignette_center_offset"])
     out = apply_motion_blur(out, params["motion_blur_length"], params["motion_blur_angle"])
