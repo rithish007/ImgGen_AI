@@ -40,7 +40,7 @@ from prompts import CLASSES
 # instance budget for the deliberate combinatorial design below, a different
 # concept from prompts.py's COUNT_RANGES (which is per-class, used only by
 # prompts.py's own independent random generate_dataset_prompts() path).
-DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6), "dense": (5, 8)}
+DENSITY_RANGE = {"sparse": (2, 3), "moderate": (4, 6), "dense": (5, 7)}
 
 BASE_SEED = 42
 ALL_CLASSES = sorted(CLASSES)
