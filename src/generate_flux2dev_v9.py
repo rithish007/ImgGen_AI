@@ -73,13 +73,14 @@ def _load_flux2dev_multi_gpu(cfg: dict):
     try:
         pipe = pipe_cls.from_pretrained(
             cfg["repo"], torch_dtype=torch.bfloat16, device_map="balanced",
+            local_files_only=True,
         )
         print("multi-gpu: device_map='balanced' (diffusers-managed split)")
         return pipe, "balanced"
     except (TypeError, ValueError, NotImplementedError) as e:
         print(f"device_map='balanced' failed ({type(e).__name__}: {e}) - trying manual placement")
 
-    pipe = pipe_cls.from_pretrained(cfg["repo"], torch_dtype=torch.bfloat16)
+    pipe = pipe_cls.from_pretrained(cfg["repo"], torch_dtype=torch.bfloat16, local_files_only=True)
     pipe.text_encoder.to("cuda:1")
     pipe.transformer.to("cuda:0")
     if hasattr(pipe, "vae") and pipe.vae is not None:
