@@ -29,8 +29,12 @@ module load Anaconda3/2025.06-1
 source activate imggen
 
 export HF_HOME=/mnt/parscratch/users/elp25rr/hf_cache
-export TRANSFORMERS_CACHE="$HF_HOME"
-export HF_HUB_OFFLINE=1
+export HF_HUB_CACHE="$HF_HOME/hub"
+# NOTE: HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE deliberately NOT set globally -
+# diffusers' offline-fallback path for this multi-component pipeline was
+# unreliable with them set (see commit history). local_files_only=True is
+# passed directly in generate_flux2dev_v9.py's from_pretrained() calls
+# instead, which is what actually enforces no-network-access here.
 
 cd /mnt/parscratch/users/elp25rr/ImgGen_AI
 

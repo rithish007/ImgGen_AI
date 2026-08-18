@@ -144,8 +144,9 @@ def main() -> None:
         torch_dtype="auto",
         device_map="auto",
         moe_impl="eager",
+        local_files_only=True,
     )
-    model.load_tokenizer(MODEL_REPO)
+    model.load_tokenizer(MODEL_REPO, local_files_only=True)
     print(f"load complete in {time.perf_counter() - t_load0:.1f}s")
 
     if hasattr(model, "hf_device_map"):

@@ -33,8 +33,11 @@ module load Anaconda3/2025.06-1
 source activate hunyuan
 
 export HF_HOME=/mnt/parscratch/users/elp25rr/hf_cache
-export TRANSFORMERS_CACHE="$HF_HOME"
-export HF_HUB_OFFLINE=1
+export HF_HUB_CACHE="$HF_HOME/hub"
+# NOTE: HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE deliberately NOT set globally -
+# diffusers' offline-fallback path was unreliable with them set (see commit
+# history). local_files_only=True is passed directly in
+# generate_hunyuan_v8.py's from_pretrained() calls instead.
 
 cd /mnt/parscratch/users/elp25rr/ImgGen_AI
 
