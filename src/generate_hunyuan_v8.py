@@ -130,7 +130,7 @@ def main() -> None:
             print()
         return
 
-    from transformers import AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     print(
         f"loading {MODEL_REPO} (AutoModelForCausalLM, bf16/fp16 auto, "
@@ -146,7 +146,15 @@ def main() -> None:
         moe_impl="eager",
         local_files_only=True,
     )
-    model.load_tokenizer(MODEL_REPO, local_files_only=True)
+    # load_tokenizer()'s real signature is load_tokenizer(self, tokenizer) - it
+    # accepts a tokenizer object OR a repo string, but a string path internally
+    # calls a bare AutoTokenizer.from_pretrained(tokenizer) with no
+    # local_files_only, which can try network access. Build the tokenizer
+    # ourselves with local_files_only=True and pass the object in instead.
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_REPO, trust_remote_code=True, local_files_only=True
+    )
+    model.load_tokenizer(tokenizer)
     print(f"load complete in {time.perf_counter() - t_load0:.1f}s")
 
     if hasattr(model, "hf_device_map"):
