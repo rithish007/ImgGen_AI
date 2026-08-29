@@ -1,0 +1,121 @@
+"""Train yolo26x.pt on dataset/v9_flux2dev_duo_dr (duo_calibrated DR,
+label-fix applied - DR labels now reuse the base image's label file
+verbatim instead of an independent, recall-degraded SAM3 re-annotation) with
+a heavier augmentation/optimizer regime than v9_duo_v2.py, informed by
+sim2real literature research and this project's own result history:
+
+- optimizer=MuSGD + lr0=0.0004: matches YOLO26's official X-scale training
+  recipe instead of relying on optimizer="auto" (docs.ultralytics.com/
+  guides/yolo26-training-recipe), whose lr0 for S/M/L/X is ~25x lower than
+  the classic universal 0.01 default.
+- imgsz=896, freeze=10: more resolution headroom for YOLO26's STAL
+  (small-target-aware label assignment) on real DUO's tiny GT boxes
+  (0.34-1% of frame area); freezing the first 10 backbone layers is
+  Ultralytics' own fine-tuning guidance for adapting a COCO checkpoint to a
+  narrow domain without catastrophic forgetting of generic low-level
+  features.
+- mosaic=0.95, mixup=0.35, copy_paste=0.35: this project's v9_duo_v2.py
+  already showed mosaic 0->0.5 improved DUO mAP50 4.90%->5.53%; pushed
+  further here per user directive.
+- scale=0.9: directly attacks the diagnosed object-scale mismatch
+  (reports/analysis/v9_yolo_sim2real_diagnosis.json finding 3) by forcing
+  the model to see much smaller synthetic renders during training.
+  multi_scale=True was tried alongside this but dropped: combined with
+  batch=-1 autobatch it probes VRAM at 2x imgsz (1792px here), which OOM'd
+  repeatedly and collapsed the batch size to 1 - scale=0.9 alone already
+  covers most of the intended size-diversity benefit without that failure
+  mode.
+- hsv_h=0.03/hsv_s=0.9/hsv_v=0.6: well above stock (0.015/0.7/0.4) - extra
+  photometric domain randomization layered on top of the physics-based
+  Jerlov DR transform, targeting the residual color-cast gap
+  (diagnosis finding 1).
+- fliplr=0.5, flipud=0.4: vertical flip enabled (unusual, default 0.0) -
+  reasonable for top-down benthic survey imagery where seafloor objects
+  have no fixed "up" orientation.
+
+    python -m imggen.train.v9_duo_v3
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from ultralytics import YOLO
+
+DATA_YAML = "dataset/v9_flux2dev_duo_dr/data.yaml"
+REAL_EVAL_DATA = "dataset/real_eval/data.yaml"
+EPOCHS = 150
+PATIENCE = 30
+IMGSZ = 896
+RUN_NAME = "v9_flux2dev_duo_dr_v3"
+
+
+def main() -> None:
+    project = Path("runs/train").resolve()
+
+    model = YOLO("yolo26x.pt")
+    model.train(
+        data=DATA_YAML,
+        epochs=EPOCHS,
+        patience=PATIENCE,
+        imgsz=IMGSZ,
+        batch=-1,
+        device="0",
+        project=str(project),
+        name=RUN_NAME,
+        exist_ok=True,
+        plots=True,
+        optimizer="MuSGD",
+        lr0=0.0004,
+        lrf=0.5,
+        cos_lr=True,
+        momentum=0.948,
+        weight_decay=0.00027,
+        warmup_epochs=3.0,
+        amp=True,
+        mosaic=0.95,
+        close_mosaic=10,
+        mixup=0.35,
+        copy_paste=0.35,
+        scale=0.9,
+        translate=0.1,
+        degrees=0.0,
+        shear=0.0,
+        perspective=0.0,
+        fliplr=0.5,
+        flipud=0.4,
+        hsv_h=0.03,
+        hsv_s=0.9,
+        hsv_v=0.6,
+        erasing=0.4,
+        freeze=10,
+    )
+
+    val_own = model.val(data=DATA_YAML, device="0", project=str(project), name=f"{RUN_NAME}_val_own", exist_ok=True)
+    val_duo = model.val(data=REAL_EVAL_DATA, device="0", project=str(project), name=f"{RUN_NAME}_val_duo", exist_ok=True)
+
+    summary = {
+        "own_val": {
+            "map50": float(val_own.box.map50),
+            "map50_95": float(val_own.box.map),
+            "precision": float(val_own.box.mp),
+            "recall": float(val_own.box.mr),
+        },
+        "duo_test": {
+            "map50": float(val_duo.box.map50),
+            "map50_95": float(val_duo.box.map),
+            "precision": float(val_duo.box.mp),
+            "recall": float(val_duo.box.mr),
+        },
+    }
+    summary_path = project / f"{RUN_NAME}_summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    print(f"\nsummary -> {summary_path}")
+    print(f"own val:  mAP50={summary['own_val']['map50']:.4f}  mAP50-95={summary['own_val']['map50_95']:.4f}")
+    print(f"DUO test: mAP50={summary['duo_test']['map50']:.4f}  mAP50-95={summary['duo_test']['map50_95']:.4f}  "
+          f"P={summary['duo_test']['precision']:.4f}  R={summary['duo_test']['recall']:.4f}")
+
+
+if __name__ == "__main__":
+    main()

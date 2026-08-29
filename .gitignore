@@ -1,8 +1,11 @@
-# Virtual environment — never commit, pod rebuilds from requirements.txt
+# Virtual environments — never commit, remote rebuilds from requirements.txt
 ImgGenEnv/
 venv/
 .venv/
 .venv_sam3/
+
+# IDE
+.idea/
 
 # Python
 __pycache__/
@@ -17,6 +20,7 @@ __pycache__/
 *.bin
 *.gguf
 *.pt
+weights/
 .cache/
 hf_cache/
 
@@ -24,16 +28,31 @@ hf_cache/
 outputs/
 runs/
 dataset/
+results/
+scratch/
+logs/
 *.png
 *.jpg
 *.jpeg
 *.npy
 
-# Keep manifests, configs and reports (they are the reproducibility record)
+# Large presentation binaries (the SVG sources below stay tracked).
+# assets/*.pdf only - literature/*.pdf are reference papers and stay tracked.
+*.pptx
+assets/*.pdf
+~$*
+
+# Local session state
+.job_tracking_state.json
+
+# Keep manifests, configs and reports — they are the reproducibility record.
+# reports/ is nested one level deep (class_counts/, water_stats/, analysis/),
+# so these need ** rather than the single-level * they used before the reorg.
 !manifests/*.json
 !configs/*.json
-!reports/*.json
-!reports/*.md
+!reports/**/*.json
+!reports/**/*.md
+!assets/*.svg
 
 # Secrets
 .env

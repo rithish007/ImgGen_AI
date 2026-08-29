@@ -1,0 +1,129 @@
+<svg viewBox="0 0 1600 930" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#131E29"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#FF9664"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="930" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="800" y="42" text-anchor="middle" font-size="28" font-weight="700" fill="#440099">AI-Generative Pipeline &amp; Arrival of Datasets A / B / C</text>
+  <text x="800" y="66" text-anchor="middle" font-size="14" fill="#131E29">Flux.2 Dev &#8594; SAM3 &#8594; Depth Pro &#8594; Akkaynak&#8211;Treibitz Domain Randomization &#8594; YOLO26x</text>
+
+  <!-- ===================== SHARED STAGES (full width) ===================== -->
+
+  <!-- Stage 1 -->
+  <rect x="140" y="88" width="1320" height="62" rx="10" fill="#005A8F"/>
+  <circle cx="172" cy="119" r="16" fill="#FFFFFF"/>
+  <text x="172" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#005A8F">1</text>
+  <text x="205" y="112" font-size="14.5" font-weight="700" fill="#FFFFFF">STAGE 1 &#8212; Base Image Generation</text>
+  <text x="205" y="132" font-size="12.5" fill="#EAF6FB">Flux.2 Dev &#183; flux2dev v9 production batch &#183; 1000 images, 1024&#215;1024, manifest-driven</text>
+
+  <path d="M800,150 L800,168" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 2 -->
+  <rect x="140" y="168" width="1320" height="62" rx="10" fill="#005A8F"/>
+  <circle cx="172" cy="199" r="16" fill="#FFFFFF"/>
+  <text x="172" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#005A8F">2</text>
+  <text x="205" y="192" font-size="14.5" font-weight="700" fill="#FFFFFF">STAGE 2 &#8212; Zero-Shot Auto-Annotation</text>
+  <text x="205" y="212" font-size="12.5" fill="#EAF6FB">SAM3 &#8594; YOLO-format labels &#183; 3-class taxonomy: starfish &#183; sea_urchin &#183; scallop</text>
+
+  <!-- Bypass line to Dataset A (no DR) -->
+  <path d="M340,230 L340,635" stroke="#131E29" stroke-width="2.5" stroke-dasharray="2 6" marker-end="url(#arrow)"/>
+  <rect x="150" y="330" width="190" height="44" rx="6" fill="#FFFFFF" stroke="#005A8F" stroke-width="1.5"/>
+  <text x="245" y="347" text-anchor="middle" font-size="11.5" font-weight="700" fill="#131E29">no domain randomization</text>
+  <text x="245" y="362" text-anchor="middle" font-size="11" fill="#131E29">base images used directly</text>
+
+  <path d="M800,230 L800,248" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 3a -->
+  <rect x="600" y="248" width="700" height="52" rx="10" fill="#440099"/>
+  <circle cx="632" cy="274" r="15" fill="#FFFFFF"/>
+  <text x="632" y="279" text-anchor="middle" font-size="13" font-weight="700" fill="#440099">3a</text>
+  <text x="662" y="270" font-size="13.5" font-weight="700" fill="#FFFFFF">STAGE 3a &#8212; Metric Range Estimation</text>
+  <text x="662" y="288" font-size="11.5" fill="#E9DCF5">Apple Depth Pro &#8594; per-pixel z(x,y), z_near / z_far &#183; used by both DR profiles below</text>
+
+  <path d="M950,300 L950,318" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 3b equation box -->
+  <rect x="600" y="318" width="700" height="72" rx="10" fill="#440099"/>
+  <circle cx="632" cy="344" r="15" fill="#FFFFFF"/>
+  <text x="632" y="349" text-anchor="middle" font-size="13" font-weight="700" fill="#440099">3b</text>
+  <text x="662" y="340" font-size="13.5" font-weight="700" fill="#FFFFFF">STAGE 3b &#8212; Physics Transform (Akkaynak&#8211;Treibitz, CVPR 2018)</text>
+  <text x="950" y="361" text-anchor="middle" font-size="14" fill="#FFFFFF" font-family="Consolas, 'Courier New', monospace">I_c = J_c &#183; exp(&#8722;&#946;_c^D&#183;z)  +  B_c^&#8734; &#183; (1 &#8722; exp(&#8722;&#946;_c^B&#183;z))</text>
+  <text x="950" y="379" text-anchor="middle" font-size="11.5" fill="#E9DCF5">deterministic, pixel-only &#183; same equation for both profiles &#8212; coefficients diverge below</text>
+
+  <!-- fan out to profile branches -->
+  <path d="M760,390 L810,420" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M1140,390 L1250,420" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Branch B: placeholder -->
+  <rect x="600" y="420" width="400" height="145" rx="10" fill="#663DB3"/>
+  <text x="800" y="443" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">PROFILE = placeholder  &#8594;  Dataset B</text>
+  <text x="620" y="465" font-size="11.5" fill="#F0EAF9">&#946; &amp; B&#8734; shape: jerlov.py &#8212; ratios borrowed from</text>
+  <text x="620" y="480" font-size="11.5" fill="#F0EAF9">danaberman/underwater-hl (BMVC 2017), generic</text>
+  <text x="620" y="495" font-size="11.5" fill="#F0EAF9">camera peak-&#955; (475/525/600nm)</text>
+  <text x="620" y="514" font-size="11.5" fill="#F0EAF9">Water types sampled: {1C, 3C, 5C}</text>
+  <text x="620" y="533" font-size="11.5" fill="#F0EAF9">B&#8734; magnitude: ONE uncited K_d anchor</text>
+  <text x="620" y="548" font-size="11.5" fill="#F0EAF9">(0.2763 m&#8315;&#185;), applied uniformly to all types</text>
+  <text x="620" y="563" font-size="11.5" font-weight="700" fill="#FFE8DC">Zero real-world (DUO) input anywhere</text>
+
+  <!-- Branch C: duo_calibrated - highlighted -->
+  <rect x="1000" y="420" width="400" height="145" rx="10" fill="#981F92" stroke="#FF9664" stroke-width="4"/>
+  <text x="1200" y="443" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">PROFILE = duo_calibrated  &#8594;  Dataset C</text>
+  <text x="1020" y="465" font-size="11.5" fill="#FBEAF9">&#946;: jerlov_anchored.py &#8212; Solonenko &amp; Mobley</text>
+  <text x="1020" y="480" font-size="11.5" fill="#FBEAF9">2015 (peer-reviewed IOP tables), pinned to type 1C</text>
+  <text x="1020" y="495" font-size="11.5" fill="#FBEAF9">(only type matching DUO's red/green cast direction)</text>
+  <text x="1020" y="518" font-size="12" font-weight="700" fill="#FF9664">&#9733; B&#8734; = DUO's own measured airlight</text>
+  <text x="1020" y="533" font-size="11.5" font-weight="700" fill="#FF9664">(0.417, 0.80, 0.535 RGB) &#177;15% jitter</text>
+  <text x="1020" y="548" font-size="11" font-weight="700" fill="#FF9664">REVERSE-ENGINEERED from real DUO test</text>
+  <text x="1020" y="561" font-size="11" font-weight="700" fill="#FF9664">images via water_stats.py &#8212; not from Jerlov</text>
+
+  <!-- shared camera effects note -->
+  <text x="1030" y="583" text-anchor="middle" font-size="11.5" font-style="italic" fill="#131E29">+ shared camera-level effects on both profiles: vignette &#183; motion blur &#183; signal-dependent sensor noise (depth-scaled)</text>
+
+  <path d="M800,565 L800,635" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M1260,565 L1260,635" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ===================== DATASET ROW ===================== -->
+
+  <rect x="140" y="635" width="400" height="90" rx="10" fill="#C2E9F1" stroke="#005A8F" stroke-width="2"/>
+  <text x="340" y="660" text-anchor="middle" font-size="14" font-weight="700" fill="#131E29">DATASET A &#8212; Base Only</text>
+  <text x="340" y="680" text-anchor="middle" font-size="12" fill="#131E29">900 train / 100 val</text>
+  <text x="340" y="697" text-anchor="middle" font-size="12" fill="#131E29">no domain randomization</text>
+  <text x="340" y="714" text-anchor="middle" font-size="11" fill="#131E29">&#8594; Yolo26x_v1</text>
+
+  <rect x="600" y="635" width="400" height="90" rx="10" fill="#C2E9F1" stroke="#005A8F" stroke-width="2"/>
+  <text x="800" y="660" text-anchor="middle" font-size="14" font-weight="700" fill="#131E29">DATASET B &#8212; Base + Placeholder DR</text>
+  <text x="800" y="680" text-anchor="middle" font-size="12" fill="#131E29">1800 train (900+900) / 200 val (100+100)</text>
+  <text x="800" y="697" text-anchor="middle" font-size="12" fill="#131E29">split by base-image identity</text>
+  <text x="800" y="714" text-anchor="middle" font-size="11" fill="#131E29">&#8594; Yolo26x_v3</text>
+
+  <rect x="1060" y="635" width="400" height="90" rx="10" fill="#9ADBE8" stroke="#FF9664" stroke-width="3"/>
+  <text x="1260" y="660" text-anchor="middle" font-size="14" font-weight="700" fill="#131E29">DATASET C &#8212; Base + duo_calibrated DR</text>
+  <text x="1260" y="680" text-anchor="middle" font-size="12" fill="#131E29">1800 train (900+900) / 200 val (100+100)</text>
+  <text x="1260" y="697" text-anchor="middle" font-size="12" fill="#131E29">split by base-image identity</text>
+  <text x="1260" y="714" text-anchor="middle" font-size="11" fill="#131E29">&#8594; Yolo26x_v2</text>
+
+  <path d="M340,725 L620,758" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M800,725 L800,758" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M1260,725 L980,758" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Training / Eval -->
+  <rect x="300" y="758" width="1000" height="56" rx="10" fill="#440099"/>
+  <text x="800" y="780" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">YOLO26x TRAINING (100 epochs, imgsz 640, mosaic=0 / mixup=0)</text>
+  <text x="800" y="800" text-anchor="middle" font-size="12" fill="#E9DCF5">evaluated against the real DUO test set &#8212; 778 images, fixed 3-class taxonomy</text>
+
+  <path d="M800,814 L800,832" stroke="#131E29" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Results strip -->
+  <rect x="140" y="832" width="1320" height="80" rx="10" fill="#FFFFFF" stroke="#FF9664" stroke-width="3"/>
+  <text x="800" y="860" text-anchor="middle" font-size="16" font-weight="700" fill="#131E29">RESULT (DUO mAP50):  Dataset B <tspan fill="#FF9664">2.83%</tspan>  &#60;  Dataset A <tspan fill="#131E29">4.48%</tspan>  &#60;  Dataset C <tspan fill="#FF9664">4.90%</tspan></text>
+  <text x="800" y="884" text-anchor="middle" font-size="13.5" fill="#131E29">Uncalibrated DR actively harms sim-to-real transfer; target-calibrated DR helps &#8212; same mechanism, opposite outcome</text>
+  <text x="800" y="902" text-anchor="middle" font-size="11.5" font-style="italic" fill="#663DB3">Calibration source, not DR itself, determines whether domain randomization helps or hurts</text>
+
+</svg>

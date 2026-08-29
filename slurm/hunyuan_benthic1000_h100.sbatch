@@ -23,7 +23,7 @@
 # trust_remote_code custom architecture, too risky to attempt blind here.
 #
 # Writes to a SEPARATE output dir (v8_h100) from the A100 run (v8) so the
-# two attempts can never collide on the same files. generate_hunyuan_v8.py
+# two attempts can never collide on the same files. imggen/generate/hunyuan_v8.py
 # skips rows whose PNG+JSON already exist, so whichever of the two jobs
 # ends up running, the other can be safely cancelled later with nothing
 # lost or duplicated.
@@ -45,7 +45,7 @@ if [ -n "${LIMIT:-}" ]; then
     LIMIT_FLAG="--limit ${LIMIT}"
 fi
 
-python src/generate_hunyuan_v8.py \
+python -m imggen.generate.hunyuan_v8 \
     --manifest manifests/benthic-survey-1000-hunyuan.json \
     --out outputs/hunyuan/v8_h100 \
     ${LIMIT_FLAG}

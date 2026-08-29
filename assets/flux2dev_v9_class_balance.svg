@@ -1,0 +1,65 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Arial, sans-serif">
+  <rect x="0" y="0" width="1600" height="900" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="800" y="48" text-anchor="middle" font-size="28" font-weight="700" fill="#440099">Flux2Dev v9 &#8212; Training Set Class Balance</text>
+  <text x="800" y="74" text-anchor="middle" font-size="14.5" fill="#131E29">Dataset A &#183; 900 base images (train split) &#183; 4,146 SAM3 auto-labeled instances</text>
+
+  <!-- gridlines + axis -->
+  <g stroke="#C2E9F1" stroke-width="1.5">
+    <line x1="180" y1="700" x2="1000" y2="700"/>
+    <line x1="180" y1="600" x2="1000" y2="600"/>
+    <line x1="180" y1="500" x2="1000" y2="500"/>
+    <line x1="180" y1="400" x2="1000" y2="400"/>
+    <line x1="180" y1="300" x2="1000" y2="300"/>
+    <line x1="180" y1="200" x2="1000" y2="200"/>
+    <line x1="180" y1="160" x2="1000" y2="160"/>
+  </g>
+  <g font-size="13" fill="#131E29" text-anchor="end">
+    <text x="170" y="704">0</text>
+    <text x="170" y="604">300</text>
+    <text x="170" y="504">600</text>
+    <text x="170" y="404">900</text>
+    <text x="170" y="304">1200</text>
+    <text x="170" y="204">1500</text>
+    <text x="170" y="165">1800</text>
+  </g>
+  <text x="60" y="430" text-anchor="middle" font-size="14" fill="#131E29" transform="rotate(-90 60 430)">instances</text>
+  <line x1="180" y1="700" x2="180" y2="160" stroke="#131E29" stroke-width="2"/>
+  <line x1="180" y1="700" x2="1000" y2="700" stroke="#131E29" stroke-width="2"/>
+
+  <!-- bars: baseline y=700, scale 0.3 px/instance -->
+  <!-- starfish: 1142 -> height 342.6 -->
+  <rect x="220" y="357.4" width="180" height="342.6" fill="#005A8F" rx="4"/>
+  <text x="310" y="340" text-anchor="middle" font-size="16" font-weight="700" fill="#131E29">1,142</text>
+  <text x="310" y="358" text-anchor="middle" font-size="12.5" fill="#131E29">(27.5%)</text>
+  <text x="310" y="726" text-anchor="middle" font-size="14" font-weight="600" fill="#131E29">starfish</text>
+
+  <!-- sea_urchin: 1330 -> height 399 -->
+  <rect x="490" y="301" width="180" height="399" fill="#663DB3" rx="4"/>
+  <text x="580" y="283" text-anchor="middle" font-size="16" font-weight="700" fill="#131E29">1,330</text>
+  <text x="580" y="301" text-anchor="middle" font-size="12.5" fill="#131E29">(32.1%)</text>
+  <text x="580" y="726" text-anchor="middle" font-size="14" font-weight="600" fill="#131E29">sea_urchin</text>
+
+  <!-- scallop: 1674 -> height 502.2 -->
+  <rect x="760" y="197.8" width="180" height="502.2" fill="#440099" rx="4"/>
+  <text x="850" y="180" text-anchor="middle" font-size="16" font-weight="700" fill="#131E29">1,674</text>
+  <text x="850" y="198" text-anchor="middle" font-size="12.5" fill="#131E29">(40.4%)</text>
+  <text x="850" y="726" text-anchor="middle" font-size="14" font-weight="600" fill="#131E29">scallop</text>
+
+  <!-- callout: comparison to real DUO test set -->
+  <rect x="1050" y="200" width="440" height="300" rx="10" fill="#FFFFFF" stroke="#FF9664" stroke-width="3"/>
+  <text x="1270" y="234" text-anchor="middle" font-size="15" font-weight="700" fill="#131E29">&#9733; Worth flagging in the diagnosis chapter</text>
+  <text x="1075" y="264" font-size="12.5" fill="#131E29">Real DUO test set (778 images) instance counts:</text>
+  <text x="1075" y="288" font-size="13" font-weight="600" fill="#131E29">starfish: 1,296</text>
+  <text x="1075" y="310" font-size="13" font-weight="600" fill="#131E29">sea_urchin: 4,436</text>
+  <text x="1075" y="332" font-size="13" font-weight="600" fill="#131E29">scallop: 182</text>
+  <line x1="1075" y1="350" x2="1465" y2="350" stroke="#C2E9F1" stroke-width="1.5"/>
+  <text x="1075" y="376" font-size="12.5" font-weight="700" fill="#FF9664">Scallop is the RAREST class in real</text>
+  <text x="1075" y="396" font-size="12.5" font-weight="700" fill="#FF9664">data (2.3%) but the MOST common</text>
+  <text x="1075" y="416" font-size="12.5" font-weight="700" fill="#FF9664">class in synthetic training (40.4%)</text>
+  <text x="1075" y="442" font-size="11.5" fill="#131E29">&#8212; a train/test distribution mismatch,</text>
+  <text x="1075" y="460" font-size="11.5" fill="#131E29">separate from the DR calibration finding.</text>
+
+  <text x="800" y="800" text-anchor="middle" font-size="12" font-style="italic" fill="#663DB3">Source: Ultralytics plot_labels() on dataset/v9_flux2dev (train split) &#183; SAM3 zero-shot annotation</text>
+</svg>

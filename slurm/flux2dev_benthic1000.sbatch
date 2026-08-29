@@ -15,7 +15,7 @@
 # two - see scripts/build_split_manifest.py).
 #
 # Measured on RunPod (2x A100 SXM): 71.0s/image -> ~19.7h for 1000 images.
-# --time=30:00:00 leaves ~50% margin. generate_flux2dev_v9.py skips any row
+# --time=30:00:00 leaves ~50% margin. imggen/generate/flux2dev_v9.py skips any row
 # whose PNG+JSON already exist, so if this walltime is somehow still not
 # enough, just resubmit the same job - it picks up where it left off, no
 # wasted GPU time on already-completed rows.
@@ -33,7 +33,7 @@ export HF_HUB_CACHE="$HF_HOME/hub"
 # NOTE: HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE deliberately NOT set globally -
 # diffusers' offline-fallback path for this multi-component pipeline was
 # unreliable with them set (see commit history). local_files_only=True is
-# passed directly in generate_flux2dev_v9.py's from_pretrained() calls
+# passed directly in imggen/generate/flux2dev_v9.py's from_pretrained() calls
 # instead, which is what actually enforces no-network-access here.
 
 cd /mnt/parscratch/users/elp25rr/ImgGen_AI
@@ -43,7 +43,7 @@ if [ -n "${LIMIT:-}" ]; then
     LIMIT_FLAG="--limit ${LIMIT}"
 fi
 
-python src/generate_flux2dev_v9.py \
+python -m imggen.generate.flux2dev_v9 \
     --model flux2dev \
     --manifest manifests/benthic-survey-1000-flux2dev.json \
     --out outputs/flux2dev/v9 \

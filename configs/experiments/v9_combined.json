@@ -1,0 +1,29 @@
+{
+  "_comment": "Variant registry for the v9 'combined' experiment family (the original v8-prompt v9 run PLUS the starfish-camouflage-prompt v9_starfish run). Consumed by imggen/train/v9_combined.py and imggen/eval/v9_combined_on_duo.py, which were previously four copy-pasted scripts each differing only in these values. All four share the heavy-augmentation regime established by imggen/train/v9_duo_v3.py.",
+  "variants": {
+    "base": {
+      "dataset": "dataset/v9_flux2dev_combined",
+      "run_name": "v9_flux2dev_combined",
+      "train_images": 2000,
+      "description": "2000-image combined base set, no DR"
+    },
+    "duo": {
+      "dataset": "dataset/v9_flux2dev_combined_duo_dr",
+      "run_name": "v9_flux2dev_combined_duo_dr",
+      "train_images": 4000,
+      "description": "combined base + duo_calibrated DR copies"
+    },
+    "duo_scatter": {
+      "dataset": "dataset/v9_flux2dev_combined_duo_scatter_dr",
+      "run_name": "v9_flux2dev_combined_duo_scatter_dr",
+      "train_images": 4000,
+      "description": "combined base + duo_calibrated_scatter DR copies"
+    },
+    "placeholder": {
+      "dataset": "dataset/v9_flux2dev_combined_placeholder_dr",
+      "run_name": "v9_flux2dev_combined_placeholder_dr",
+      "train_images": 4000,
+      "description": "combined base + placeholder DR copies"
+    }
+  }
+}
