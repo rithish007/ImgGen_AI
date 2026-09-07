@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "pred_labels": "runs\\predict_duo\\v9_flux2dev_duo_scatter_dr_v2_detections\\labels",
+    "gt_labels": "dataset\\real_eval\\labels",
+    "conf_threshold": 0.25,
+    "iou_threshold": 0.5,
+    "n_images": 778
+  },
+  "labels": [
+    "starfish",
+    "sea_urchin",
+    "scallop",
+    "background"
+  ],
+  "matrix_rows_predicted_cols_true": [
+    [
+      8,
+      0,
+      0,
+      14
+    ],
+    [
+      4,
+      1068,
+      0,
+      740
+    ],
+    [
+      0,
+      2,
+      24,
+      65
+    ],
+    [
+      1284,
+      3366,
+      158,
+      0
+    ]
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "n_images": 20,
+  "engines": {
+    "sam3": {
+      "starfish": {
+        "instances": 44,
+        "images": 12
+      },
+      "sea_urchin": {
+        "instances": 48,
+        "images": 12
+      },
+      "scallop": {
+        "instances": 70,
+        "images": 17
+      }
+    },
+    "gdino": {
+      "starfish": {
+        "instances": 41,
+        "images": 12
+      },
+      "sea_urchin": {
+        "instances": 29,
+        "images": 15
+      },
+      "scallop": {
+        "instances": 4,
+        "images": 3
+      }
+    }
+  }
+}

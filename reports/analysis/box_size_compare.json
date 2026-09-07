@@ -1,0 +1,63 @@
+{
+  "synthetic": {
+    "starfish": {
+      "n": 1270,
+      "median_pct": 2.223,
+      "mean_pct": 3.066,
+      "p10_pct": 0.62,
+      "p90_pct": 6.706
+    },
+    "sea_urchin": {
+      "n": 1493,
+      "median_pct": 1.809,
+      "mean_pct": 2.435,
+      "p10_pct": 0.678,
+      "p90_pct": 5.212
+    },
+    "scallop": {
+      "n": 1847,
+      "median_pct": 1.071,
+      "mean_pct": 1.678,
+      "p10_pct": 0.188,
+      "p90_pct": 3.987
+    },
+    "overall": {
+      "n": 4610,
+      "median_pct": 1.638,
+      "mean_pct": 2.305,
+      "p10_pct": 0.382,
+      "p90_pct": 5.269
+    }
+  },
+  "real": {
+    "starfish": {
+      "n": 1296,
+      "median_pct": 0.613,
+      "mean_pct": 0.844,
+      "p10_pct": 0.124,
+      "p90_pct": 1.761
+    },
+    "sea_urchin": {
+      "n": 4436,
+      "median_pct": 0.34,
+      "mean_pct": 0.653,
+      "p10_pct": 0.06,
+      "p90_pct": 1.608
+    },
+    "scallop": {
+      "n": 182,
+      "median_pct": 0.996,
+      "mean_pct": 1.38,
+      "p10_pct": 0.189,
+      "p90_pct": 2.746
+    },
+    "overall": {
+      "n": 5914,
+      "median_pct": 0.406,
+      "mean_pct": 0.717,
+      "p10_pct": 0.066,
+      "p90_pct": 1.715
+    }
+  },
+  "ratio_median_overall": 4.03
+}
