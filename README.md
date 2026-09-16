@@ -23,10 +23,9 @@ model, then used to train YOLO detectors evaluated against the real DUO dataset.
 | `configs/experiments/` | Experiment variant registries consumed by the consolidated runners. |
 | `reports/` | Measured outputs: `class_counts/`, `water_stats/`, `analysis/`. |
 | `docs/` | Path-migration map, model comparison notes, the HiDream abandonment record, and `runbooks/` for HPC and RunPod. |
-| `literature/` | Reference papers. |
 | `runs/` | Trained models, evals and detections — **the source of truth** for results. |
 | `logs/` | Run logs, grouped `train/ eval/ annotate/ assemble/ misc/`. Git-ignored. |
-| `weights/`, `outputs/`, `dataset/`, `scratch/` | Local artefacts, git-ignored. |
+| `weights/`, `outputs/`, `dataset/`, `scratch/`, `literature/`, `thesis/`, `tmp/` | Local artefacts, git-ignored. |
 
 ## Running
 

@@ -58,6 +58,11 @@ tmp/
 !reports/**/*.md
 !assets/*.svg
 
+# Claude Code / agent tooling
+CLAUDE.md
+.claude/
+.mcp.json
+
 # Secrets
 .env
 *.pem
