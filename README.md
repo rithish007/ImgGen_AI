@@ -22,7 +22,7 @@ model, then used to train YOLO detectors evaluated against the real DUO dataset.
 | `manifests/`, `configs/` | Generation inputs — the reproducibility record. |
 | `configs/experiments/` | Experiment variant registries consumed by the consolidated runners. |
 | `reports/` | Measured outputs: `class_counts/`, `water_stats/`, `analysis/`. |
-| `docs/` | Plans, decision log, and `runbooks/` for HPC and RunPod. |
+| `docs/` | Path-migration map, model comparison notes, the HiDream abandonment record, and `runbooks/` for HPC and RunPod. |
 | `literature/` | Reference papers. |
 | `runs/` | Trained models, evals and detections — **the source of truth** for results. |
 | `logs/` | Run logs, grouped `train/ eval/ annotate/ assemble/ misc/`. Git-ignored. |
@@ -61,8 +61,8 @@ See [docs/PATH_MIGRATION.md](docs/PATH_MIGRATION.md) for the full old-to-new pat
 
 ## Related resources
 
-- **Dataset and model checkpoints:** [huggingface.co/datasets/ArcaneEvolution/MScDissertation](https://huggingface.co/datasets/ArcaneEvolution/MScDissertation) (CC-BY-NC-4.0)
-- **Companion repository:** [Shallow_Seabed](https://github.com/rithish007/Shallow_Seabed) — the descoped Unreal Engine 5.8 simulator arm (private, access on request)
+- **Dataset and model checkpoints:** [huggingface.co/datasets/Rithish007/MScDissertation](https://huggingface.co/datasets/Rithish007/MScDissertation) (CC-BY-NC-4.0)
+- **Companion repository:** [Shallow_Seabed](https://github.com/rithish007/Shallow_Seabed) — the descoped Unreal Engine 5.8 simulator arm
 
 ## License
 

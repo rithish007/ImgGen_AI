@@ -23,8 +23,8 @@ keywords:
   - diffusion models
 identifiers:
   - type: url
-    value: "https://huggingface.co/datasets/ArcaneEvolution/MScDissertation"
+    value: "https://huggingface.co/datasets/Rithish007/MScDissertation"
     description: "Companion dataset and trained model checkpoints (Hugging Face)"
   - type: url
     value: "https://github.com/rithish007/Shallow_Seabed"
-    description: "Companion repository: descoped Unreal Engine 5.8 simulator arm (private, access on request)"
+    description: "Companion repository: descoped Unreal Engine 5.8 simulator arm"

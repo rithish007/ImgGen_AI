@@ -41,9 +41,10 @@ logs/
 assets/*.pdf
 ~$*
 
-# Reference papers and dissertation writing — kept locally, not published to GitHub.
+# Reference papers, dissertation writing, and scratch analysis — kept locally, not published to GitHub.
 literature/
 thesis/
+tmp/
 
 # Local session state
 .job_tracking_state.json
