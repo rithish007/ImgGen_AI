@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+type: software
+title: "ImgGen_AI: Synthetic Underwater Imagery Generation and Sim-to-Real Object Detection"
+abstract: >-
+  Generative pipeline for physics-informed domain-randomised underwater imagery
+  (Flux.2-dev / HunyuanImage-3.0), zero-shot instance annotation, and YOLO
+  sim-to-real object detection evaluated against the DUO benchmark. Produced as
+  part of an MSc Robotics dissertation at the University of Sheffield.
+authors:
+  - family-names: "Ramamoorthy Sathya"
+    given-names: "Rithish"
+    affiliation: "The University of Sheffield"
+license: MIT
+date-released: 2026-09-16
+url: "https://github.com/rithish007/ImgGen_AI"
+repository-code: "https://github.com/rithish007/ImgGen_AI"
+keywords:
+  - underwater object detection
+  - domain randomisation
+  - synthetic data
+  - sim-to-real transfer
+  - diffusion models
+identifiers:
+  - type: url
+    value: "https://huggingface.co/datasets/ArcaneEvolution/MScDissertation"
+    description: "Companion dataset and trained model checkpoints (Hugging Face)"
+  - type: url
+    value: "https://github.com/rithish007/Shallow_Seabed"
+    description: "Companion repository: descoped Unreal Engine 5.8 simulator arm (private, access on request)"

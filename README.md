@@ -58,3 +58,29 @@ tools/export_run_bundle.sh v9_flux2dev_duo_dr_v3
 ```
 
 See [docs/PATH_MIGRATION.md](docs/PATH_MIGRATION.md) for the full old-to-new path map.
+
+## Related resources
+
+- **Dataset and model checkpoints:** [huggingface.co/datasets/ArcaneEvolution/MScDissertation](https://huggingface.co/datasets/ArcaneEvolution/MScDissertation) (CC-BY-NC-4.0)
+- **Companion repository:** [Shallow_Seabed](https://github.com/rithish007/Shallow_Seabed) — the descoped Unreal Engine 5.8 simulator arm (private, access on request)
+
+## License
+
+Code in this repository is released under the [MIT License](LICENSE).
+
+## Citation
+
+If you use this code, please cite it:
+
+```bibtex
+@misc{ramamoorthysathya2026imggen,
+  author       = {Ramamoorthy Sathya, Rithish},
+  title        = {{ImgGen\_AI: Synthetic Underwater Imagery Generation and Sim-to-Real Object Detection}},
+  year         = {2026},
+  howpublished = {\url{https://github.com/rithish007/ImgGen_AI}},
+  note         = {Code repository. University of Sheffield MSc Robotics Dissertation}
+}
+```
+
+See [CITATION.cff](CITATION.cff) for the machine-readable citation record (also surfaced by GitHub's
+"Cite this repository" button).

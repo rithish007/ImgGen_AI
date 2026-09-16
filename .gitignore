@@ -37,10 +37,13 @@ logs/
 *.npy
 
 # Large presentation binaries (the SVG sources below stay tracked).
-# assets/*.pdf only - literature/*.pdf are reference papers and stay tracked.
 *.pptx
 assets/*.pdf
 ~$*
+
+# Reference papers and dissertation writing — kept locally, not published to GitHub.
+literature/
+thesis/
 
 # Local session state
 .job_tracking_state.json
