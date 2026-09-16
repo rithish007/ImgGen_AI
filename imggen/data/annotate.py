@@ -1,27 +1,4 @@
-"""Stage 2 - auto-annotation. SAM3 only.
-
-Grounding DINO was dropped after the 20-image pilot comparison: on the same
-set SAM3 found 70 scallop instances across 17/20 images while GDINO found only
-4 across 3/20 (starfish and sea urchin were closer - 44 vs 41, 48 vs 29 - but
-scallop recall alone made GDINO unusable for this pipeline). See
-`reports/class_counts/class_counts.json` for the measured counts and the plan doc's Stage 2
-section for the full comparison. GDINO's existing labels/viz under
-`outputs/1-pilot/labels/gdino/` and `outputs/1-pilot/viz/gdino/` are left in
-place as the historical record of that comparison, not deleted.
-
-Runs one class per forward pass, never a period-joined multi-class prompt -
-SAM3 only accepts a single noun phrase per call anyway.
-
-Annotates the CLEAN Stage 1 image. Stage 3's domain-randomization transform is
-pixel-only, so the same label file is valid for the DR'd copy.
-
-    python -m imggen.data.annotate --images-dir outputs/1-pilot/klein --dry-run
-    python -m imggen.data.annotate --images-dir outputs/1-pilot/klein
-
-Outputs:
-    outputs/1-pilot/labels/sam3/<image_id>.txt   (YOLO format)
-    reports/class_counts/class_counts.json                    (merged across engines)
-"""
+"""Stage 2 - auto-annotation."""
 
 from __future__ import annotations
 
@@ -34,17 +11,14 @@ from imggen.prompts.base import CLASSES, detector_prompts
 ENGINES = {
     "sam3": {
         "repo": "facebook/sam3",
-        # Raw per-instance score threshold before the presence-head gate.
         "threshold": 0.5,
         "mask_threshold": 0.5,
-        # final_score = instance_score * presence_score must clear this too.
         "presence_threshold": 0.5,
     },
 }
 
 
 def xyxy_to_yolo_line(class_id: int, box: tuple[float, float, float, float], img_w: int, img_h: int) -> str:
-    """Absolute-pixel xyxy -> YOLO 'class_id cx cy w h' (normalized 0-1, clipped)."""
     x1, y1, x2, y2 = box
     x1 = max(0.0, min(x1, img_w))
     x2 = max(0.0, min(x2, img_w))
@@ -58,11 +32,6 @@ def xyxy_to_yolo_line(class_id: int, box: tuple[float, float, float, float], img
 
 
 def update_class_counts(report_path: Path, engine: str, per_class: dict[int, dict[str, float]]) -> None:
-    """Merge this engine's per-class stats into the shared class_counts.json.
-
-    per_class: {class_id: {"instances": int, "images_with_detection": int,
-                            "confidence_sum": float}}
-    """
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {}
 
@@ -87,11 +56,6 @@ def run_sam3(image_paths: list[Path], out_dir: Path, cfg: dict) -> dict[int, dic
     from PIL import Image
     from transformers import Sam3Model, Sam3Processor
 
-    # Single GPU, not device_map="auto" - SAM3 is small enough to never need
-    # sharding, and on a multi-GPU host "auto" splits the vision encoder
-    # across devices; its residual connections don't move tensors across
-    # that boundary, crashing with "Expected all tensors to be on the same
-    # device" on the first forward pass.
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(f"loading {cfg['repo']} (Sam3Model) on {device}...")
     model = Sam3Model.from_pretrained(cfg["repo"]).to(device)
@@ -121,11 +85,6 @@ def run_sam3(image_paths: list[Path], out_dir: Path, cfg: dict) -> dict[int, dic
                 target_sizes=img_inputs.get("original_sizes").tolist(),
             )[0]
 
-            # Presence head: pred_logits are per-query instance scores, but a
-            # single concept can be entirely absent from the image. Most
-            # manifest rows only contain a subset of the 3 classes, so this
-            # gate matters a lot - without it, absent classes still produce
-            # confident-looking false positives.
             presence = outputs.presence_logits.sigmoid().item()
 
             hit_this_class = False

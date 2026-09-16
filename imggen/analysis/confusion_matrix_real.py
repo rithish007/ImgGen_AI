@@ -1,29 +1,4 @@
-"""Confusion matrix on real DUO predictions -- the evidence every run's own
-confusion_matrix.png is missing, because Ultralytics only ever computes that
-plot against the synthetic held-out split (Chapter 6, "Synthetic Validation
-Carries No Transfer Signal"). This script builds the real-domain equivalent:
-IoU-matches one run's predictions on the 778-image DUO test split against
-ground truth, and tallies a (class + background) x (class + background)
-matrix, so misclassification (wrong class, right box) can be told apart from
-a pure miss (false negative) and a pure false alarm (false positive).
-
-Matching, per image: predictions are taken in confidence order (highest
-first, thresholded at --conf); each is matched to the highest-IoU unmatched
-ground-truth box of ANY class at IoU >= --iou. A matched pair with equal
-classes is a diagonal hit; a matched pair with different classes is a
-misclassification (off-diagonal). An unmatched prediction is a false
-positive against the "background" column; an unmatched ground-truth box is a
-false negative against the "background" row. This mirrors Ultralytics'
-own ConfusionMatrix convention (rows = predicted, columns = true), so it
-reads the same way as the synthetic-split matrix a reader may already know.
-
-    python -m imggen.analysis.confusion_matrix_real \
-        --pred-labels runs/predict_duo/v9_flux2dev_duo_scatter_dr_v2_detections/labels \
-        --gt-labels dataset/real_eval/labels \
-        --conf 0.25 --iou 0.5 \
-        --out reports/analysis/confusion_matrix_real.json \
-        --figure thesis/Writing/figures/fig_confusion_matrix_real
-"""
+"""Confusion matrix on real DUO predictions -- the evidence every run's own confusion_matrix.png is missing, because Ultralytics only ever computes that plot against the synthetic held-out split (Chapter 6, "Synthetic Validation Carries No Transfer Signal")."""
 
 from __future__ import annotations
 
@@ -35,7 +10,7 @@ from imggen.prompts.base import class_names
 
 CLASS_NAMES = class_names()
 N = len(CLASS_NAMES)
-BG = N  # background row/col index
+BG = N
 
 
 def read_yolo(path: Path, with_conf: bool) -> list[tuple[int, list[float], float]]:
@@ -54,7 +29,6 @@ def read_yolo(path: Path, with_conf: bool) -> list[tuple[int, list[float], float
 
 
 def iou(a: list[float], b: list[float]) -> float:
-    """IoU of two YOLO (cx, cy, w, h) boxes."""
     ax1, ay1, ax2, ay2 = a[0] - a[2] / 2, a[1] - a[3] / 2, a[0] + a[2] / 2, a[1] + a[3] / 2
     bx1, by1, bx2, by2 = b[0] - b[2] / 2, b[1] - b[3] / 2, b[0] + b[2] / 2, b[1] + b[3] / 2
     ix1, iy1 = max(ax1, bx1), max(ay1, by1)
@@ -83,12 +57,12 @@ def match_image(preds: list[tuple[int, list[float], float]],
         if best_iou >= iou_thresh and best_j >= 0:
             gt_used[best_j] = True
             gcid = gts[best_j][0]
-            matrix[pcid][gcid] += 1  # row=predicted, col=true
+            matrix[pcid][gcid] += 1
         else:
-            matrix[pcid][BG] += 1  # prediction with no matching GT -> false positive
+            matrix[pcid][BG] += 1
     for used, (gcid, _, _) in zip(gt_used, gts):
         if not used:
-            matrix[BG][gcid] += 1  # GT box no prediction matched -> false negative
+            matrix[BG][gcid] += 1
 
 
 def main() -> None:

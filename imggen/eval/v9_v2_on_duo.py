@@ -1,12 +1,4 @@
-"""Detect + score the v9_flux2dev_v2 model (v9_flux2dev base dataset, no DR,
-trained with the heavier MuSGD/mosaic-0.95/mixup-0.35/copy_paste-0.35/scale-
-0.9/freeze-10 regime - see imggen/train/v9_v2.py) against the real DUO test
-set, and merge it into the same runs/eval_duo/comparison.json produced by
-imggen/eval/v9_on_duo.py and friends so all variants stay directly
-comparable. Mirrors imggen/eval/v9_on_duo.py's pattern exactly.
-
-    python -m imggen.eval.v9_v2_on_duo
-"""
+"""Detect + score the v9_flux2dev_v2 model (v9_flux2dev base dataset, no DR, trained with the heavier MuSGD/mosaic-0.95/mixup-0.35/copy_paste-0.35/scale- 0.9/freeze-10 regime - see imggen/train/v9_v2.py) against the real DUO test set, and merge it into the same runs/eval_duo/comparison.json produced by imggen/eval/v9_on_duo.py and friends so all variants stay directly comparable."""
 from __future__ import annotations
 
 import json

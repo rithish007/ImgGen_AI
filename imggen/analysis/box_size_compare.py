@@ -1,20 +1,4 @@
-"""Object box-size comparison -- synthetic v9 training labels vs. real DUO test labels.
-
-Chapter 6's content-component argument (RQ4) claims the generator produces
-objects that are too large relative to the frame, based on visual inspection
-of the rendered montage; the number that would turn that inference into a
-measurement was not available because the v9 label files lived only on the
-RunPod workspace at the time (see reports/analysis/v9_yolo_sim2real_diagnosis.json,
-finding 3). Both label sets are now on disk locally, so this script computes
-it directly: box area (w*h, already frame-normalised in YOLO format) per
-class and overall, for the delivered v9 synthetic corpus and the 778-image
-DUO test split, and reports the median and mean of each.
-
-    python -m imggen.analysis.box_size_compare \
-        --synthetic-labels outputs/flux2dev/v9/labels/sam3 \
-        --real-labels dataset/real_eval/labels \
-        --out reports/analysis/box_size_compare.json
-"""
+"""Object box-size comparison -- synthetic v9 training labels vs. real DUO test labels."""
 
 from __future__ import annotations
 
@@ -29,7 +13,6 @@ CLASS_NAMES = class_names()
 
 
 def read_areas(labels_dir: Path) -> dict[int, list[float]]:
-    """class_id -> [box area fraction of frame, ...] over every .txt in labels_dir."""
     areas: dict[int, list[float]] = {cid: [] for cid in CLASS_NAMES}
     for lp in labels_dir.glob("*.txt"):
         for line in lp.read_text(encoding="utf-8").strip().splitlines():

@@ -1,25 +1,4 @@
-"""Train yolo26x.pt on a v9 "combined" dataset variant.
-
-The combined base set is the original v8-prompt v9 run PLUS the
-starfish-camouflage-prompt v9_starfish run (see
-imggen/data/assemble_v9_combined_dataset.py and its DR siblings). Each variant
-adds a different domain-randomization copy on top, or none for `base`.
-
-Uses the heavy-augmentation/optimizer regime established by
-imggen/train/v9_duo_v3.py - see that module's docstring for the full rationale
-(MuSGD + lr0=0.0004 matching YOLO26's official X-scale training; mosaic=0.95 /
-mixup=0.35 / copy_paste=0.35 to attack memorization; scale=0.9 targeting the
-diagnosed object-scale mismatch; hsv well above stock).
-
-Consolidated from four copy-pasted scripts (v9_combined, _duo, _duo_scatter,
-_placeholder) that differed only in dataset path and run name. Those values now
-live in configs/experiments/v9_combined.json.
-
-    python -m imggen.train.v9_combined --variant base
-    python -m imggen.train.v9_combined --variant duo
-    python -m imggen.train.v9_combined --variant duo_scatter
-    python -m imggen.train.v9_combined --variant placeholder
-"""
+"""Train yolo26x.pt on a v9 "combined" dataset variant."""
 from __future__ import annotations
 
 import argparse

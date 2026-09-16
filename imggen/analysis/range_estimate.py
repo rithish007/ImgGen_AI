@@ -1,40 +1,4 @@
-"""Stage 3a - range estimation. DA-V2 Large, guided-filter refined.
-
-Locked in after imggen/analysis/depth_compare.py's head-to-head against Apple Depth Pro -
-see AI_Pipeline_Test_Plan.md's Stage 3a section for the comparison and why
-DA-V2 (not an underwater-specific model) is the right choice: Stage 1 renders
-clean, colour-neutral water on purpose, so these images have none of the
-attenuation/backscatter domain shift underwater-specific depth models exist to
-correct for.
-
-Per image:
-    1. DA-V2 Large -> raw relative inverse depth (disparity-like: higher = nearer)
-    2. Guided-filter refinement (imggen/analysis/depth_utils.py) using the source RGB
-       image's luminance as an edge guide - a training-free sharpening step,
-       not a fix for the model's fundamental smoothness (see Stage 3a's
-       "why not fine-tune" note in the plan doc)
-    3. Normalize to [0,1], linearly flip (1-x - see disparity_to_range()'s
-       docstring for why NOT a reciprocal, caught via an actual bug), then
-       remap to [z_near, z_far] metres
-    4. z_near is fixed at 0.3m; z_far is sampled per image, seeded by the
-       image's own generation seed for reproducibility, from a framing-
-       dependent range - the plan doc's original [2,4]m only covered
-       close-up/mid framing, written before the pilot manifest grew "wide"
-       framing rows (12-20); extended here so wide shots get a plausibly
-       larger range:
-           close-up: [1.5, 2.5] m
-           mid:      [2.0, 4.0] m  (the plan doc's original default)
-           wide:     [3.0, 6.0] m
-
-Standing caveat (from the plan doc): this is an *estimated* range map of a
-*generated* scene - a plausible randomization driver for Stage 3b, not ground
-truth, and nothing downstream should treat it as measured.
-
-Reads each image's sidecar JSON (written by generate.py) for its "framing"
-and "seed" - both scripts must have already run.
-
-    python -m imggen.analysis.range_estimate --images-dir outputs/1-pilot/klein
-"""
+"""Stage 3a - range estimation."""
 
 from __future__ import annotations
 
@@ -64,20 +28,6 @@ def load_sidecar(image_path: Path) -> dict:
 
 
 def disparity_to_range(disp, framing: str, seed: int):
-    """Guided-filtered disparity -> metric-ish range map z(x,y) in metres.
-
-    Linear flip (1 - normalized_disparity), NOT a second reciprocal. DA-V2's
-    raw disparity is already approximately proportional to 1/z, which is
-    exactly what gives near objects more spread than far ones after percentile
-    normalization (confirmed in depth_compare.py's comparison - that expanded
-    near-field detail is why DA-V2 was picked over Depth Pro). Reciprocating
-    an already-reciprocal quantity undoes that property: it re-compresses the
-    near field and lets the far background dominate the range again - caught
-    empirically (75th percentile of a first attempt landed at 0.33m, barely
-    above z_near, with the jump to z_far only in the top few percent of
-    pixels). A plain linear flip preserves the existing distribution and just
-    orients it the right way (near = small z, far = large z).
-    """
     disp_norm = local_norm(disp)
     rel_distance = 1.0 - disp_norm
 

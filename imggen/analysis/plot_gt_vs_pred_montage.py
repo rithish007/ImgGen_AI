@@ -1,20 +1,4 @@
-"""GT-vs-prediction montage on real DUO test images, for the best run
-(v9_flux2dev_duo_scatter_dr_v2, Calibrated+scatter / tuned -- Table
-tab:transfer's top cell).
-
-One panel per class in a 1x3 row. Each panel overlays, on the same real image,
-the ground-truth boxes (solid) and the run's confidence-thresholded (>=0.25)
-predictions (dashed), so a matched pair reads as two boxes on one object and a
-miss reads as a ground-truth box with no prediction beside it. The frames are
-chosen so every panel contains at least one miss: starfish GT 4/pred 3,
-sea urchin GT 6/pred 5, scallop GT 8/pred 3 -- the dominant failure mode
-Chapter 6 reports across all three classes.
-
-Boxes are drawn as matplotlib patches (not baked into the raster) so they stay
-crisp in the PDF; only the underwater photograph itself is raster.
-
-    python -m imggen.analysis.plot_gt_vs_pred_montage
-"""
+"""GT-vs-prediction montage on real DUO test images, for the best run (v9_flux2dev_duo_scatter_dr_v2, Calibrated+scatter / tuned -- Table tab:transfer's top cell)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -30,15 +14,13 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 
 CLASS_NAMES = {0: "(a) Starfish", 1: "(b) Sea Urchins", 2: "(c) Scallops"}
-GT_COLOR = "#FFE100"    # solid yellow -- high contrast on teal/green water
-PRED_COLOR = "#FF3B30"  # dashed red
+GT_COLOR = "#FFE100"
+PRED_COLOR = "#FF3B30"
 
 GT_LABELS = ROOT / "dataset/real_eval/labels"
 GT_IMAGES = ROOT / "dataset/real_eval/images"
 PRED_LABELS = ROOT / "runs/predict_duo/v9_flux2dev_duo_scatter_dr_v2_detections/labels"
 
-# one representative frame per class (see module docstring)
-# scallop: 6393_jpg... (GT=8, pred=3) -- chosen from slide 15 of the dissertation PPT
 PANELS = [
     (0, "5264_jpg.rf.1a373f7b37cbdbb7022203416393e7e7"),
     (1, "3914_jpg.rf.9c5e8c49058599febd7dfac225b24cce"),

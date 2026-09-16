@@ -1,115 +1,4 @@
-"""
-prompts_hunyuan_v5.py
-======================
-Two changes on top of v4, both evidence-driven, deliberately kept narrow:
-
-1. THE SHELL-LEAK FIX (same bug, same fix as prompts_flux2dev_v8.py).
-   Cross-version SAM3 analysis (comparing requested vs detected counts
-   across every flux2dev v3-v7 and Hunyuan v1/v4 50-image full run) found
-   scallop-leak (phantom scallop detections in scenes that requested ZERO
-   scallops) is near-zero everywhere EXCEPT v4 (19/50 images, the worst of
-   any dataset checked) and flux2dev v7 (11/50) - the two prompt files that
-   introduced this exact COLOR_PALETTE_GUARD wording:
-       "seabed, rock and shell material in muted natural tones, not vivid
-       or saturated"
-   No earlier version of either model's prompt engine mentions "shell" in
-   its colour guard. Visually confirmed on outputs/hunyuan/v4/2-pilot_016
-   and _023 - both genuinely contain real, individually-rendered scallop
-   shells scattered across the seabed as ambient scene detail, not a SAM3
-   detection artifact, and not requested. Same "ironic rebound" mechanism
-   already documented once for this project (prompts_hunyuan_v2/v3's
-   equipment-exclusion list backfiring): naming a concept, even to regulate
-   its colour, appears to prime the model to generate it.
-   Fix: "shell" dropped from COLOR_PALETTE_GUARD.
-
-2. THE CAMERA-DISTANCE / "PRODUCT PHOTOGRAPH" FIX.
-   User's direct feedback (2026-08-15): "Every hunyuan images are
-   beautiful, very product photograph like. I want the floor to be 5-8
-   meters below the camera." Root cause, already correctly diagnosed
-   earlier this session: CAMERA_HEIGHTS["far"] in prompts_hunyuan_v4.py
-   already reads "camera ~5-8m up, wide overview survey view, far above
-   the seabed" - exactly the requested distance - but
-   generate_hunyuan_v4.py's build_prompt() calls never pass
-   camera_height="far", so it falls back to a random choice among all four
-   heights (~25% far, ~75% close/medium/high). v4 dropped the forced-far
-   behaviour on purpose at the time, to isolate the equipment-hallucination
-   revert as the only variable under test (see v4's own docstring) - that
-   isolation already paid off (confirmed 0/50 equipment-hallucination at
-   full scale), so this file re-adds the camera-distance fix on its own,
-   now that it's safe to test as the next single variable.
-
-   This is not a new, untested idea: flux2dev v6/v7 already forced
-   camera_height="far" plus a short SUBJECT_SCALE_GUARD ("organisms small
-   in the wide view"), and the user's own full 50-image visual review of
-   flux2dev v7 (this session) confirmed clean survey-distance framing with
-   no camera/robot-in-frame or blob-urchin regressions. This file applies
-   the identical mechanism to Hunyuan - camera_height="far" forced in
-   generate_hunyuan_v5.py, plus a matching subject-scale guard - rather
-   than inventing a new untested lever. Worded a little fuller than
-   flux2dev's terse version (Hunyuan has no FLUX.2-style 512-token cap and
-   this file's existing guards - REALISM_GUARD, GROUND_CONTACT_GUARD - are
-   already full sentences, not compressed phrases), but deliberately NOT
-   stacked with additional new guards beyond this one restored pair -
-   explicit user instruction: reiterate properly, but don't over-engineer
-   it. In particular, no elaborate multi-clause exclusion language is
-   added anywhere in this file - that exact pattern (prompts_hunyuan_v2/v3's
-   equipment-exclusion list) already backfired once this project, and the
-   shell-leak bug above is a second, independent case of the same
-   mechanism, so this file stays deliberately conservative on guard
-   wording everywhere, not just the two changes above.
-
-NOT YET RUN. Needs a smoke test and then a full 50-image run before
-trusting either fix - both are strong, evidence-backed hypotheses, not
-guarantees.
-
---- prompts_hunyuan_v4.py's own docstring follows for everything this file
-didn't touch (the equipment-hallucination revert, product-photo/
-ground-contact guards, colour-palette materials scoping, etc. - all still
-accurate) ---
-
-REVERT + evidence-driven rewrite. Diagnosed why hunyuan_v2/v3's
-equipment-hallucination "fix" wasn't working (both smoke tests still hit
-1/3 = 33%, no better than doing nothing) by going back to the two full
-50-image Hunyuan runs the user identified as "almost right"
-(outputs/hunyuan/v1/3-pilot_promptfix and outputs/hunyuan/v1/5-pilot, both
-using prompts_v2.py's plain wording) and actually counting the defect rate
-there: 2/50 = 4%, scanned across all 50 images, not a smoke-test-sized
-sample.
-
-DIAGNOSIS: hunyuan_v2/v3's "fix" - an elaborate first-person-POV opening
-("captured in first-person point-of-view... as though the viewer is
-looking directly through the camera's own lens") plus an explicit
-equipment-exclusion list ("no robotic arms, thrusters, camera housing,
-cables...") - measurably made the defect WORSE, not better (33% vs the
-baseline's 4%; two independent 1/3 hits against a true ~4% rate have
-roughly 1-in-80 odds by chance, not proof but strong enough to act on).
-Likely mechanism: naming the exact equipment to exclude, stacked with
-camera/lens language elsewhere in the prompt, probably primed the model
-toward the concept rather than suppressing it - an "ironic rebound" effect,
-not unheard of in text-to-image models. Overspecifying an exclusion isn't
-automatically safer than a plain description.
-
-WHAT THIS FILE ACTUALLY DOES: reverts the opening line and REALISM_GUARD to
-prompts_v2.py's original plain wording (the empirically-good 4% version),
-while keeping everything else that was never implicated in the defect and
-has its own independent justification: PRODUCT_PHOTO_GUARD, GROUND_CONTACT_GUARD
-(thread 2's "product photography/hovering" fixes - about specimen-display
-framing and substrate contact, no camera/equipment language, no reason to
-suspect these), the no-kelp/DUO-consistent SCENE_TEMPLATES/ALGAE_VARIATIONS/
-LIGHTING_CONDITIONS pools, the blue starfish variant, and the urchin
-grey-blob fix. COLOR_PALETTE_GUARD further narrowed to materials-only (see
-its own comment - real water_stats.py evidence, ported from prompts_v7.py).
-
-EVERYTHING ELSE IS UNCHANGED FROM prompts_v3.py: SUBSTRATE_VARIATIONS/
-ROCK_FORMATIONS/CAMERA_FOV/CAMERA_MOTION/IMAGING_CONDITIONS/COMPOSITIONS/
-DEPTH_DISTRIBUTIONS, SCENE_DENSITIES, DETECTION_DIFFICULTY, CAMERA_HEIGHTS,
-COUNT_RANGES, the count=1 arrangements_solo/group split, the urchin
-grey-blob fix (carried forward though Hunyuan's own anatomy has been clean
-throughout - kept identical to flux2dev/klein for a fair cross-model
-comparison, not because Hunyuan needed it), the single-class+dense
-rock-formation gate, the wide+sparse FRAMING_COUNT_ANCHOR, and the
-BIVALVE_GUARD scallop-only gate.
-"""
+"""Two changes on top of v4, both evidence-driven, deliberately kept narrow: 1."""
 
 from __future__ import annotations
 
@@ -117,10 +6,6 @@ import random
 from dataclasses import dataclass, asdict
 from typing import Optional
 
-
-# ============================================================================
-# CLASS DEFINITIONS (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
 
 CLASSES: dict[int, dict[str, object]] = {
 
@@ -195,10 +80,6 @@ CLASSES: dict[int, dict[str, object]] = {
 }
 
 
-# ============================================================================
-# SCENE / ENVIRONMENT (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
-
 SCENE_TEMPLATES = [
     "temperate coastal seabed - sand, coarse sediment, gravel, irregular rocks, shallow ledges",
     "open sandy plain - fine sand, only occasional scattered pebbles, very little exposed rock",
@@ -234,10 +115,6 @@ ROCK_FORMATIONS = [
 ]
 
 
-# ============================================================================
-# ECOLOGICAL / COMPOSITIONAL CONDITIONS (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
-
 SCENE_DENSITIES = {
     "sparse": "relatively open seabed, substantial exposed sediment, limited clutter",
     "moderate": "moderately cluttered seabed, natural rocks/algae/sediment across foreground and mid-ground",
@@ -261,11 +138,6 @@ LIGHTING_CONDITIONS = [
     "flat overcast light, minimal shadows, slight greenish colour cast",
 ]
 
-# v5 (this file): wording expanded slightly - not a new idea, just made a
-# little fuller given Hunyuan has no token-budget pressure. "far" is the
-# ONLY height this file's generate script uses (forced, not random - see
-# generate_hunyuan_v5.py), matching flux2dev v6/v7's already-proven
-# approach to the same "product photography" complaint.
 CAMERA_HEIGHTS = {
     "low": "camera ~0.5m up, angled down",
     "medium": "camera ~1m up, angled down",
@@ -307,10 +179,6 @@ DEPTH_DISTRIBUTIONS = [
 ]
 
 
-# ============================================================================
-# GUARDS
-# ============================================================================
-
 COMPOSITION_GUARD = "natural asymmetric spacing, no decorative symmetry or cloned objects"
 SPECIES_GUARD = "only these organisms and seabed material in frame, no other animals"
 REALISM_GUARD = "plain documentary robot photo, no divers, boats, or CG rendering"
@@ -319,19 +187,8 @@ PRODUCT_PHOTO_GUARD = "candid in-situ ecological documentation, not a specimen d
 
 GROUND_CONTACT_GUARD = "every organism rests directly on the substrate with genuine physical contact and a soft contact shadow, never elevated or hovering above the seabed"
 
-# v5 (this file): "shell" dropped - see module docstring, this is the
-# shell-leak fix. Everything else about this guard's scoping (materials
-# only, not the whole frame's colour grading) is unchanged from v4.
 COLOR_PALETTE_GUARD = "seabed and rock material in muted natural tones, not vivid or saturated"
 
-# v5 (this file): restored, worded a little fuller than flux2dev's
-# equivalent ("organisms small in the wide view") to match this file's
-# existing sentence-length guards rather than switching styles mid-file.
-# Paired with camera_height="far" being forced in generate_hunyuan_v5.py -
-# same combination already confirmed clean on flux2dev v7's full 50-image
-# visual review (this session). See module docstring point 2 for the full
-# reasoning - this is the direct fix for the "product photograph" framing
-# complaint.
 SUBJECT_SCALE_GUARD = "organisms appear small within the wide elevated view, not enlarged or filling the frame, consistent with a genuine overhead survey distance rather than a close specimen shot"
 
 OPTICAL_GUARD = "full frame, no fisheye or vignette"
@@ -341,20 +198,12 @@ BIVALVE_GUARD = "bivalve shells fully closed and undisturbed"
 FRAMING_COUNT_ANCHOR = "count is a strict total for the frame, not per unit area"
 
 
-# ============================================================================
-# FRAMING (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
-
 FRAMING = {
     "close-up": "close survey framing at natural working distance, camera near the seabed but keeping full ecological context, not a tight macro product shot; objects at different distances",
     "mid": "mid-distance framing, foreground and mid-ground objects visible",
     "wide": "wide framing, larger section of seabed, objects at different depths",
 }
 
-
-# ============================================================================
-# OBJECT COUNT RANGES (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
 
 COUNT_RANGES = {
     0: {"sparse": (1, 2), "moderate": (1, 3), "dense": (2, 4)},
@@ -363,13 +212,8 @@ COUNT_RANGES = {
 }
 
 
-# ============================================================================
-# DATA STRUCTURES
-# ============================================================================
-
 @dataclass
 class PromptMetadata:
-    """Metadata describing the synthetic scene requested by the prompt."""
 
     seed: int
     density: str
@@ -388,10 +232,6 @@ class PromptMetadata:
     imaging_index: int
 
 
-# ============================================================================
-# RANDOM HELPERS (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
-
 def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
     index = rng.randrange(len(values))
     return values[index], index
@@ -403,16 +243,11 @@ def _random_count(rng: random.Random, class_id: int, density: str) -> int:
 
 
 def _drop_leading_article(text: str) -> str:
-    """Strip only a genuine leading 'a ' or 'an ', not every occurrence."""
     for article in ("an ", "a "):
         if text.startswith(article):
             return text[len(article):]
     return text
 
-
-# ============================================================================
-# CLASS PHRASE GENERATION (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
 
 def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     entry = CLASSES[class_id]
@@ -431,10 +266,6 @@ def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     )
 
 
-# ============================================================================
-# SCENE OBJECT GENERATION (unchanged from prompts_hunyuan_v4.py)
-# ============================================================================
-
 def generate_class_counts(
     rng: random.Random,
     density: str,
@@ -447,10 +278,6 @@ def generate_class_counts(
     return {cid: _random_count(rng, cid, density) for cid in sorted(selected)}
 
 
-# ============================================================================
-# PROMPT BUILDER
-# ============================================================================
-
 def build_prompt(
     counts: dict[int, int],
     *,
@@ -460,18 +287,6 @@ def build_prompt(
     camera_height: Optional[str] = None,
     framing: Optional[str] = None,
 ) -> tuple[str, PromptMetadata]:
-    """
-    Construct a Hunyuan-specific underwater survey image-generation prompt.
-
-    Same rng draw sequence/order as prompts_hunyuan_v2/v3/v4.py, so a given
-    seed selects the same environment/subject content across versions -
-    only the surrounding scaffolding text differs (see module docstring:
-    shell-leak fix + restored camera-distance/subject-scale guard).
-
-    Assembly order follows Hunyuan's own recommended prompt structure (main
-    subject/scene -> image quality/style -> composition/perspective ->
-    lighting/atmosphere -> technical parameters).
-    """
 
     rng = random.Random(seed)
 
@@ -495,11 +310,6 @@ def build_prompt(
     if framing not in FRAMING:
         raise ValueError(f"Invalid framing {framing!r}. Expected one of {list(FRAMING)}")
 
-    # ------------------------------------------------------------------
-    # Select scene components (same rng sequence order as prompts_hunyuan_v2/
-    # v3/v4, so a given seed draws the same environment even though the
-    # assembled sentences below differ)
-    # ------------------------------------------------------------------
 
     scene_template, scene_idx = _choose(rng, SCENE_TEMPLATES)
     algae, algae_idx = _choose(rng, ALGAE_VARIATIONS)
@@ -514,9 +324,6 @@ def build_prompt(
 
     include_rock_formation = not (len(counts) == 1 and density == "dense")
 
-    # ------------------------------------------------------------------
-    # Build subject descriptions (unchanged from prompts_hunyuan_v4.py)
-    # ------------------------------------------------------------------
 
     subject_phrases = []
     for class_id in sorted(counts):
@@ -534,11 +341,6 @@ def build_prompt(
     else:
         subjects = ", ".join(subject_phrases[:-1]) + ", and " + subject_phrases[-1]
 
-    # ------------------------------------------------------------------
-    # Compose the final prompt - Hunyuan's own recommended structure:
-    # main subject/scene -> image quality/style -> composition/perspective
-    # -> lighting/atmosphere -> technical parameters.
-    # ------------------------------------------------------------------
 
     opening = f"Photorealistic underwater robot-survey photograph. Scene contains: {subjects}."
 
@@ -597,10 +399,6 @@ def build_prompt(
 
     return prompt, metadata
 
-
-# ============================================================================
-# CLASS NAME HELPERS
-# ============================================================================
 
 def class_names() -> dict[int, str]:
     return {cid: entry["short"] for cid, entry in CLASSES.items()}

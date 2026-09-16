@@ -1,9 +1,4 @@
-"""Simple matplotlib bar chart of flux2dev v9's (Dataset A) training-set
-class balance. Counts read directly from Ultralytics' plot_labels() output
-for the v9_flux2dev run (900 base images, train split).
-
-    python -m imggen.analysis.plot_v9_class_balance
-"""
+"""Simple matplotlib bar chart of flux2dev v9's (Dataset A) training-set class balance."""
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

@@ -1,33 +1,4 @@
-"""Build a single YOLO-format dataset combining flux2dev v9's two independent
-1000-image base sets - the original v8-prompt run (outputs/flux2dev/v9) and
-the starfish-camouflage-prompt run (outputs/flux2dev/v9_starfish) - into one
-2000-image pool.
-
-Verified before building this (see chat/diagnosis trail, not repeated here):
-zero near-duplicate images anywhere, within either set or across the full
-1000x1000 cross-set comparison (perceptual-hash check, hamming<=4/256
-threshold, closest pair found across all 2000 images was distance 7/256).
-Combining also measurably improves class balance vs either set alone
-(max/min class-instance-share ratio 1.31x combined vs 1.45x/1.38x alone).
-
-Both sets share the same manifest (benthic-survey-1000-flux2dev.json), so
-corresponding image_ids share a seed and therefore a correlated scene
-layout (same rock/object placement) even though the rendered appearance
-differs. Grouped and split by image_id, not by individual image - matching
-this pipeline's established DR-leakage convention (see
-assemble_v9_duo_dataset.py's identical reasoning): a base image and its
-starfish-prompt counterpart always land in the same split, so a same-layout
-pair can never straddle train/val.
-
-Filenames are disambiguated with a source suffix (_base / _starfish) since
-both sets reuse identical image_id stems.
-
-Run after both sets have SAM3 labels (outputs/flux2dev/v9/labels/sam3/,
-outputs/flux2dev/v9_starfish/labels/sam3/ - both already present, 1000
-label files each, one per image regardless of instance count).
-
-    python -m imggen.data.assemble_v9_combined_dataset
-"""
+"""Build a single YOLO-format dataset combining flux2dev v9's two independent 1000-image base sets - the original v8-prompt run (outputs/flux2dev/v9) and the starfish-camouflage-prompt run (outputs/flux2dev/v9_starfish) - into one 2000-image pool."""
 from __future__ import annotations
 
 import argparse
@@ -36,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
-RESOLUTION = 1024  # native - see assemble_v9_dataset.py's docstring for why this isn't a fixed downscale
+RESOLUTION = 1024
 CLASS_NAMES = {0: "starfish", 1: "sea_urchin", 2: "scallop"}
 
 

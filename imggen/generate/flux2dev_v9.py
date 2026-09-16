@@ -1,29 +1,4 @@
-"""Stage 1 generation - flux2dev v9 - no prompt-engine change from v8 (still
-imports prompts_flux2dev_v8.py, "shell"-leak fix only). Two operational fixes
-found during a final sanity check ahead of the 1000-image benthic-survey-1000
-production run:
-
-1. The status line hardcoded `stage=3-pilot` regardless of which manifest was
-   actually passed - stale from an earlier manifest name, cosmetic only, but
-   would print misleading info for this run. Now reads the stage from the
-   manifest file itself.
-2. No crash-resume: a 1000-image run is multi-hour: any interruption meant
-   restarting from row 1 and re-paying for every already-completed image.
-   Now skips any row whose output PNG+JSON already exist in --out, so a
-   killed/restarted job just continues where it left off.
-
-Duplicated from generate_flux2dev_v8.py rather than editing it in place (v8
-already produced real output via the full 50-image run).
-
-    # smoke test first, same as every other model in this pipeline
-    python -m imggen.generate.flux2dev_v9 --model flux2dev --manifest manifests/benthic-survey-1000-flux2dev.json --limit 3 --out outputs/flux2dev/v9/smoke
-
-    # full run (safe to re-run after an interruption - already-done rows are skipped)
-    python -m imggen.generate.flux2dev_v9 --model flux2dev --manifest manifests/benthic-survey-1000-flux2dev.json --out outputs/flux2dev/v9
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - flux2dev v9 - no prompt-engine change from v8 (still imports prompts_flux2dev_v8.py, "shell"-leak fix only)."""
 
 from __future__ import annotations
 
@@ -42,9 +17,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # ~106-112GB combined bf16 (transformer + text_encoder) - no
-        # quantization this round, split across 2 GPUs instead. See
-        # _load_flux2dev_multi_gpu().
         "approx_vram_gb": 112,
         "multi_gpu": True,
         "lora": None,
@@ -53,17 +25,6 @@ MODELS = {
 
 
 def _load_flux2dev_multi_gpu(cfg: dict):
-    """Load flux2dev at full bf16 precision across 2 GPUs, no quantization.
-
-    Primary path: diffusers' device_map="balanced", which lets diffusers'
-    own accelerate-backed dispatch decide the split and - critically -
-    correctly handles moving intermediate tensors between devices during the
-    forward pass.
-
-    Fallback: manual placement (text_encoder -> cuda:1, transformer/vae ->
-    cuda:0). This is NOT guaranteed correct - see generate_flux2dev_v7.py's
-    identical comment for the full explanation of why, unchanged here.
-    """
     import torch
     import diffusers
 

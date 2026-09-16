@@ -1,12 +1,4 @@
-"""Detect + score the v9_flux2dev_duo_scatter_dr_v2 model (duo_calibrated +
-blur/scattering DR, label-fix applied, trained with the heavier MuSGD/
-mosaic-0.95/mixup-0.35/copy_paste-0.35/scale-0.9/freeze-10 regime - see
-imggen/train/v9_duo_scatter_v2.py) against the real DUO test set, and merge
-it into the same runs/eval_duo/comparison.json produced by
-imggen/eval/v9_on_duo.py and friends. Mirrors that script's pattern exactly.
-
-    python -m imggen.eval.v9_duo_scatter_v2_on_duo
-"""
+"""Detect + score the v9_flux2dev_duo_scatter_dr_v2 model (duo_calibrated + blur/scattering DR, label-fix applied, trained with the heavier MuSGD/ mosaic-0.95/mixup-0.35/copy_paste-0.35/scale-0.9/freeze-10 regime - see imggen/train/v9_duo_scatter_v2.py) against the real DUO test set, and merge it into the same runs/eval_duo/comparison.json produced by imggen/eval/v9_on_duo.py and friends."""
 from __future__ import annotations
 
 import json

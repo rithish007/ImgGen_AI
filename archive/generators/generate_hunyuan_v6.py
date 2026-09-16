@@ -1,24 +1,4 @@
-"""
-Stage 1 generation - HunyuanImage-3.0 v6
-==========================================
-
-Generates the v6 habitat-first underwater survey dataset.
-
-Key changes from v5
--------------------
-- Imports prompts_hunyuan_v6.py.
-- Keeps the camera-to-seabed distance strictly in the 5-8 m range.
-- Uses camera_height='far' only as a compatibility alias; the prompt engine
-  resolves it to an exact 5, 6, 7 or 8 m survey height per seed.
-- Removes the legacy close/mid/wide framing influence. Manifest `framing`
-  remains readable and is preserved as metadata, but no longer controls prompt
-  geometry.
-- Saves the exact generated prompt and full prompt metadata beside each PNG.
-
-The model/API path follows the working HunyuanImage-3.0 v5 driver: startup
-introspection is retained, `seed` is passed directly, and generation uses
-stream=True.
-"""
+"""Generates the v6 habitat-first underwater survey dataset."""
 
 from __future__ import annotations
 
@@ -36,7 +16,6 @@ PROMPT_VARIANT = "hunyuan_v6_habitat_first_survey_5_8m"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print the live generate_image() signature before generation."""
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -54,15 +33,12 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """Generate one image using the confirmed Hunyuan API."""
     return model.generate_image(prompt=prompt, seed=seed, stream=True)
 
 
 def _build_for_row(row: dict) -> tuple[str, object]:
     counts = {int(k): v for k, v in row["requested_counts"].items()}
 
-    # Force the mandatory survey-distance regime. The prompt engine converts
-    # "far" into a deterministic 5/6/7/8 m selection based on the row seed.
     return build_prompt(
         counts,
         seed=row["seed"],

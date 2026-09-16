@@ -1,54 +1,4 @@
-"""Stage 1 generation - flux2dev v7 - narrows COLOR_PALETTE_GUARD to
-materials only (real water_stats.py evidence, see prompts_v7.py's
-docstring), on top of v6's camera_height="far" experiment.
-
-Duplicated from generate_3pilot_v6.py rather than editing it in place (same
-"duplicate, don't edit shared files" rule used throughout this project).
-Imports build_prompt() from prompts_v7.py. Still forces camera_height="far"
-- v6's camera-distance work is unchanged, this file only carries v7's
-colour-guard fix forward. See prompts_v7.py's module docstring for the full
-water_stats.py evidence: DUO's real water is green-dominant (ratio_rg=0.451),
-v5/v6's whole-image "muted beige/brown" guard measurably moved AWAY from
-that (ratio_rg 1.024 -> 1.102), while Stage 3's domain-randomization output
-already sits closer to DUO's real value with no Stage-1 guard driving it -
-so Stage 1's colour guard is now scoped to substrate/organism materials
-only, not the whole frame's colour grading.
-
-NOT touching water colour/clarity - SCENE_WATER_PHRASE stays "clear water,
-true-to-life colour" unchanged. Stage 3 owns water colour as a separate
-post-process.
-
-Token budget re-verified - the reworded guard is about the same length, so
-still ~479/512 worst case over manifests/2-pilot.json; re-check if curious
-rather than assuming.
-
-Defaults output to outputs/5-pilot/flux2dev_v6_far.
-
-flux2dev's combined bf16 footprint (~32B transformer + ~24B Mistral Small 3.1
-text encoder) is ~106-112GB - too large for any single Stanage GPU (A100/H100
-80GB, H100NVL 94GB), so it needs 2 GPUs. Tries diffusers' device_map="balanced"
-first (the diffusers-managed split, most likely to correctly handle moving
-intermediate tensors between devices); falls back to manual per-component
-placement if that pipeline class doesn't support it in the pinned
-diffusers==0.39.0. UNVERIFIED which path actually works until tested on
-Stanage - 2-pilot never needed multi-GPU, this is new territory for this
-pipeline. The manual fallback in particular is a best-effort attempt, not a
-guaranteed-correct path: diffusers pipelines only handle cross-device tensor
-transfer automatically when device_map's own dispatch machinery is what did
-the placement, not when components are just individually .to()'d after the
-fact. If it errors with a "tensors on different devices" RuntimeError, that's
-this fallback being wrong, not a mystery bug - see the comment on
-_load_flux2dev_multi_gpu() below before debugging from scratch.
-
-    # smoke test first, same as every other model in this pipeline
-    python -m archive.generators.generate_flux2dev_v7 --model flux2dev --manifest manifests/2-pilot.json --limit 3 --out outputs/flux2dev/v7/smoke
-
-    # full run
-    python -m archive.generators.generate_flux2dev_v7 --model flux2dev --manifest manifests/2-pilot.json --out outputs/flux2dev/v7
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - flux2dev v7 - narrows COLOR_PALETTE_GUARD to materials only (real water_stats.py evidence, see prompts_v7.py's docstring), on top of v6's camera_height="far" experiment."""
 
 from __future__ import annotations
 
@@ -67,9 +17,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # ~106-112GB combined bf16 (transformer + text_encoder) - no
-        # quantization this round, split across 2 GPUs instead. See
-        # _load_flux2dev_multi_gpu().
         "approx_vram_gb": 112,
         "multi_gpu": True,
         "lora": None,
@@ -78,29 +25,6 @@ MODELS = {
 
 
 def _load_flux2dev_multi_gpu(cfg: dict):
-    """Load flux2dev at full bf16 precision across 2 GPUs, no quantization.
-
-    Primary path: diffusers' device_map="balanced", which lets diffusers'
-    own accelerate-backed dispatch decide the split and - critically -
-    correctly handles moving intermediate tensors between devices during the
-    forward pass. This is a generic DiffusionPipeline.from_pretrained()
-    capability for pipelines built from standard ModelMixin/PreTrainedModel
-    components (which Flux2Pipeline's transformer and text_encoder are), not
-    a pipeline-specific opt-in - expected to work, not confirmed for this
-    exact diffusers==0.39.0 + Flux2Pipeline combination until run for real.
-
-    Fallback: manual placement (text_encoder -> cuda:1, transformer/vae ->
-    cuda:0). This is NOT guaranteed correct - diffusers pipelines only
-    auto-handle cross-device tensor transfer when device_map's own dispatch
-    machinery did the placement. Manually .to()-ing components after loading
-    can crash mid-forward-pass with a "tensors on different devices"
-    RuntimeError if Flux2Pipeline.__call__ doesn't already move intermediate
-    hidden states to whatever device the next component expects. If that
-    happens, the fix is tracing where in Flux2Pipeline.__call__ the
-    text_encoder's output feeds into the transformer and adding an explicit
-    .to(transformer.device) there (or patching a subclass) - not a sign this
-    approach is unsalvageable, just that it needs that one explicit hop.
-    """
     import torch
     import diffusers
 

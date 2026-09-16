@@ -1,34 +1,4 @@
-"""Builds a real-image evaluation set from the full DUO_Dataset test split
-(dataset/DUO_Dataset/test/), remapped to this pipeline's own 3-class scheme.
-
-Why this exists: dataset/DUO_Dataset uses DUO's original 4-class numbering
-and polygon-style label lines (Roboflow's YOLO segmentation export always
-closes the polygon by repeating the first point - in this dataset every
-instance is a plain axis-aligned rectangle expressed as a closed 5-point
-polygon, verified by checking that only 4 unique (x,y) values exist per box).
-This pipeline trained on a different 3-class scheme (sea cucumber/holothurian
-dropped, scallop renumbered - see prompts.py's CLASSES and the plan doc's
-Stage 1 section), so DUO's labels can't be used as-is.
-
-Remap: DUO names=['echinus','holothurian','scallop','starfish'] (data.yaml)
-    echinus (0)     -> 1 (sea_urchin)
-    holothurian (1) -> dropped entirely (this pipeline has no class for it)
-    scallop (2)     -> 2 (scallop)
-    starfish (3)    -> 0 (starfish)
-
-Images whose only instances were holothurian end up with an empty label
-file - kept as background/negative images, not deleted, which is standard
-YOLO practice and still gives useful signal (false-positive rate on scenes
-with no target class present).
-
-Output mirrors the existing dataset/original/ layout so Ultralytics' own
-images->labels sibling-directory convention just works:
-    dataset/real_eval/images/*.jpg   (copied from DUO_Dataset/test/images)
-    dataset/real_eval/labels/*.txt   (remapped boxes, class cx cy w h)
-    dataset/real_eval/data.yaml
-
-    python -m imggen.data.prepare_real_eval
-"""
+"""Builds a real-image evaluation set from the full DUO_Dataset test split (dataset/DUO_Dataset/test/), remapped to this pipeline's own 3-class scheme."""
 
 from __future__ import annotations
 
@@ -36,12 +6,10 @@ import argparse
 import shutil
 from pathlib import Path
 
-# DUO_Dataset/test index -> this pipeline's class_id, or None to drop
 DUO_TO_PIPELINE = {0: 1, 1: None, 2: 2, 3: 0}
 
 
 def polygon_to_bbox(coords: list[float]) -> tuple[float, float, float, float]:
-    """(x1,y1,x2,y2,...) closed-polygon coords -> (cx, cy, w, h)."""
     xs = coords[0::2]
     ys = coords[1::2]
     x_min, x_max = min(xs), max(xs)

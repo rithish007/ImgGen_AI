@@ -1,7 +1,4 @@
-"""Shared depth-map helpers used by both depth_compare.py (Stage 3a candidate
-evaluation) and range_estimate.py (Stage 3a itself). Pure numpy/scipy - no
-model weights, no training.
-"""
+"""Shared depth-map helpers used by both depth_compare.py (Stage 3a candidate evaluation) and range_estimate.py (Stage 3a itself)."""
 
 from __future__ import annotations
 
@@ -9,7 +6,6 @@ import numpy as np
 
 
 def local_norm(arr: np.ndarray, lo: float = 1, hi: float = 99) -> np.ndarray:
-    """Percentile-clip and rescale to [0, 1]. `lo`/`hi` are percentiles, not values."""
     d_min, d_max = np.percentile(arr, [lo, hi])
     return np.clip((arr - d_min) / max(d_max - d_min, 1e-6), 0, 1)
 
@@ -24,16 +20,6 @@ def sobel_magnitude(arr: np.ndarray) -> np.ndarray:
 
 
 def guided_filter(guide: np.ndarray, src: np.ndarray, radius: int = 8, eps: float = 1e-3) -> np.ndarray:
-    """Edge-aware filter (He, Sun & Tang, ECCV 2010): smooths `src` while
-    snapping its transitions to `guide`'s edges, using local linear
-    regression in windows of the given radius. Pure numpy/scipy - no
-    training, no learned weights.
-
-    Chosen over fine-tuning a depth model for sharper boundaries: no ground
-    truth depth exists for images from a 2D diffusion model to fine-tune
-    against. See AI_Pipeline_Test_Plan.md's Stage 3a section for the full
-    comparison this was picked from (vs DA-V2 raw, vs Depth Pro).
-    """
     from scipy.ndimage import uniform_filter
 
     def box(x):

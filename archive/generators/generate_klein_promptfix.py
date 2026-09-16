@@ -1,35 +1,4 @@
-"""Stage 1 generation - klein, prompt-fix variant.
-
-Duplicated from generate.py rather than editing it in place, so the already-
-verified klein baseline (outputs/2-pilot/klein) stays untouched and
-reproducible. This file's only real difference: it imports build_prompt()
-from imggen.prompts.legacy.hunyuan instead of the shared prompts.base, and only keeps
-klein's MODELS entry (flux2dev/sd35/qwen_image/qwen_image_lightning dropped -
-not relevant here, see generate.py for those).
-
-Why: same rationale as generate_3pilot_promptfix.py (flux2dev). Compare this
-run's output against outputs/2-pilot/klein (identical manifest/seeds/model
-config, only the prompt text differs) to check whether prompts_hunyuan.py's
-two subtractive fixes (reworded SCENE_DENSITIES "dense" phrasing, structural
-rock-formation gate for single-class+dense rows) are neutral-or-better for
-klein too, or Hunyuan-specific. flux2dev's own comparison (outputs/3-pilot/
-flux2dev vs flux2dev_promptfix) came back net neutral - one row improved, one
-row got worse on the decorative-arrangement front, no anatomical difference
-either way - so don't assume this run will show a clean win either; it's a
-genuine open question, not a formality.
-
-klein is single-GPU and unquantized (~29GB bf16, fits one A100/H100 with
-room to spare) - no multi-gpu/quantization complexity like flux2dev needed.
-
-    # smoke test first, same as every other model in this pipeline
-    python -m archive.generators.generate_klein_promptfix --manifest manifests/2-pilot.json --limit 3 --out outputs/3-pilot/klein_promptfix_smoke
-
-    # full run
-    python -m archive.generators.generate_klein_promptfix --manifest manifests/2-pilot.json --out outputs/3-pilot/klein_promptfix
-
-Outputs PNG + sidecar JSON per image under outputs/<out>/ - same convention
-as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - klein, prompt-fix variant."""
 
 from __future__ import annotations
 
@@ -48,8 +17,6 @@ MODEL_CFG = {
     "steps": 50,
     "guidance": 4.0,
     "guidance_param": "guidance_scale",
-    # Flux2KleinPipeline takes negative_prompt_embeds but no text-level
-    # negative_prompt. Exclusions are folded into the positive prompt.
     "supports_negative": False,
     "approx_vram_gb": 29,
 }

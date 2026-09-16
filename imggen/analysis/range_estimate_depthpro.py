@@ -1,38 +1,4 @@
-"""One-off Stage 3a variant: same pipeline as range_estimate.py, but with
-Apple Depth Pro (apple/DepthPro-hf) swapped in for DA-V2 as the depth
-backbone. NOT a pipeline stage - range_estimate.py's DA-V2 choice stays the
-production default (see that file's docstring for why: DA-V2's relative
-disparity gave more near-field spread in depth_compare.py's head-to-head).
-This script exists to answer a narrower question: does swapping the depth
-backbone change domain_randomize.py's downstream behaviour, and if so, how?
-
-IMPORTANT ASYMMETRY vs DA-V2, output format compatible either way:
-    DA-V2's raw output is disparity-like (approx 1/z, higher = NEARER), so
-    range_estimate.py normalizes then does a LINEAR FLIP (1 - x) before
-    remapping to [z_near, z_far] - see disparity_to_range()'s docstring.
-    Depth Pro is a genuinely metric model (apple/DepthPro-hf, "metric": True
-    in depth_compare.py's MODELS dict) - its raw output already increases
-    with distance (higher = FARTHER), the normal depth-map convention. No
-    flip needed here; see metric_to_range() below.
-
-ALSO IMPORTANT - what this does and does NOT change downstream:
-    domain_randomize.py's sample_params(seed, z_far, profile) draws every
-    SCALAR parameter (water_type, beta_b, d, b_ref, noise/blur/vignette...)
-    from `seed` and `z_far` alone. z_far itself comes from
-    range_estimate.py's disparity_to_range() as
-    random.Random(seed).uniform(*framing_range) - a draw that depends only on
-    the seed and the image's framing, NOT on the depth model. This script
-    reuses that exact same z_far draw (see main() below), so a v2 DR run
-    built from this script's range maps will have BYTE-IDENTICAL scalar
-    config values to the v1 (DA-V2) run for the same seed. What actually
-    differs is the per-pixel z(x,y) map's SHAPE - Depth Pro vs DA-V2 disagree
-    on which pixels are near/far and how sharply, which changes where in the
-    frame the AT formula's exponential attenuation lands, not the global
-    per-image physics parameters. This is the effect worth comparing, not a
-    parameter-table diff.
-
-    python -m imggen.analysis.range_estimate_depthpro --images-dir outputs/flux2dev/v8 --out-dir outputs/flux2dev/v8/dr_runs/range_depthpro
-"""
+"""One-off Stage 3a variant: same pipeline as range_estimate.py, but with Apple Depth Pro (apple/DepthPro-hf) swapped in for DA-V2 as the depth backbone."""
 
 from __future__ import annotations
 
@@ -46,8 +12,6 @@ from imggen.analysis.depth_utils import guided_filter, local_norm
 
 MODEL_REPO = "apple/DepthPro-hf"
 
-# Same constants as range_estimate.py - kept identical so z_far draws match
-# byte-for-byte (see module docstring's "ALSO IMPORTANT" note).
 Z_NEAR = 0.3
 Z_FAR_RANGE_BY_FRAMING = {
     "close-up": (1.5, 2.5),
@@ -64,17 +28,10 @@ def load_sidecar(image_path: Path) -> dict:
 
 
 def metric_to_range(depth, framing: str, seed: int):
-    """Guided-filtered METRIC depth -> range map z(x,y) in metres.
-
-    No flip (contrast with range_estimate.py's disparity_to_range()): Depth
-    Pro's raw output already increases with distance, so normalizing to
-    [0,1] and remapping directly preserves near=small/far=large without
-    reversing anything. See module docstring.
-    """
     depth_norm = local_norm(depth)
 
     lo, hi = Z_FAR_RANGE_BY_FRAMING[framing]
-    z_far = random.Random(seed).uniform(lo, hi)  # identical draw to range_estimate.py, same seed
+    z_far = random.Random(seed).uniform(lo, hi)
     z = Z_NEAR + depth_norm * (z_far - Z_NEAR)
     return z, z_far
 

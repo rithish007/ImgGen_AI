@@ -1,41 +1,4 @@
-"""Stage 4 - dataset assembly. Produces two YOLO-format dataset variants from
-the pilot outputs:
-
-    dataset/original/     raw Stage 1 images only
-    dataset/original_dr/  raw + DR'd images, the same label reused for both
-
-Data-augmentation architecture (decided 2026-07-29): augmentation is applied
-ON-THE-FLY during YOLO training via Ultralytics' built-in hyp config (HSV
-jitter, flips, rotation, mosaic, etc.), not pre-baked into extra files here.
-Ultralytics correctly transforms box labels alongside its own geometric
-augmentation, so the "geometric ops corrupt labels" risk doesn't apply to
-on-the-fly augmentation the way it does to a hand-rolled pre-baked transform -
-Stage 3's DR pipeline stayed strictly non-geometric specifically because IT
-bakes fixed files with a reused label, a different situation from training-
-time augmentation. This means only 2 dataset variants need assembling here,
-not 4: the intended 2x2 (DR x augmentation) becomes {this script's 2 variants}
-x {this script's 2 hyp configs, applied at Stage 5 train time}.
-
-Images are square (1024x1024) throughout this pipeline, so resizing to 640x640
-is a pure isotropic scale - YOLO's normalized box coordinates (cx,cy,w,h as
-fractions of width/height) are invariant to that, so labels are copied
-unchanged rather than recomputed. This would NOT hold if source images were
-non-square (a resize that changes aspect ratio, or any crop, does require
-recomputing coordinates) - flagged since it's a real assumption baked into
-this script, not a general-purpose resize utility.
-
-A raw image and its DR'd copy always land in the same split - grouped by
-image_id BEFORE splitting, so a recoloured copy of a training image can never
-end up in val while its raw twin is in train (leakage).
-
-    python -m imggen.data.assemble_dataset
-    python -m imggen.data.assemble_dataset --val-count 4
-
-Stage 5 (training) stays ON HOLD per the plan doc until explicitly resumed -
-this script prepares what Stage 5 will need (both dataset variants, plus a
-no-augmentation hyp override for two of the four planned runs) but does not
-itself invoke any training.
-"""
+"""Stage 4 - dataset assembly."""
 
 from __future__ import annotations
 
@@ -124,7 +87,7 @@ def write_split(items: list[dict], split_name: str, out_dir: Path, include_dr: b
 
 def write_data_yaml(out_dir: Path, has_val: bool) -> None:
     names = class_names()
-    val_target = "images/val" if has_val else "images/train"  # no held-out val at pilot scale - see plan doc
+    val_target = "images/val" if has_val else "images/train"
     lines = [
         f"path: {out_dir.resolve()}",
         "train: images/train",

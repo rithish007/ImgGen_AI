@@ -1,11 +1,4 @@
-"""Detect + score the v9_flux2dev model (trained on the 900-image flux2dev
-v9 production split) against the real DUO test set, and merge it into the
-same runs/eval_duo/comparison.json produced by imggen/eval/pilot_on_duo.py so
-the 4 models (pilot_base, pilot_dr, pilot_dr_anchored, v9_flux2dev) are
-directly comparable.
-
-    python -m imggen.eval.v9_on_duo
-"""
+"""Detect + score the v9_flux2dev model (trained on the 900-image flux2dev v9 production split) against the real DUO test set, and merge it into the same runs/eval_duo/comparison.json produced by imggen/eval/pilot_on_duo.py so the 4 models (pilot_base, pilot_dr, pilot_dr_anchored, v9_flux2dev) are directly comparable."""
 from __future__ import annotations
 
 import json

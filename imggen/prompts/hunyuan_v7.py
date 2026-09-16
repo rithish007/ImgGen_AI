@@ -1,88 +1,4 @@
-"""
-prompts_hunyuan_v7.py
-======================
-One fix on top of v6: splits each class's single "placement" list into
-"placement_solo" (used when count==1) and "placement_group" (used
-otherwise), the same fix already applied once elsewhere in this project.
-
-THE BUG: v6's CLASSES entries had one undifferentiated "placement" list per
-class, picked at random regardless of requested count. Auditing the actual
-phrases found most are plural-implying:
-  - starfish: "distributed across...", "...in some locations" (2 of 5 risky)
-  - sea urchin: "occurring in small numbers...", "...some individuals partly
-    obscured", "clustered locally..." (4 of 5 risky - only "partly tucked
-    against uneven rock surfaces" was singular-safe)
-  - scallop: "...with unequal spacing between individuals" (a direct
-    self-contradiction on count=1 - there is only one individual), plus
-    "distributed sparsely...", "...scattered locations" (3 of 5 risky)
-
-This is the exact same bug this project already found and fixed once,
-documented in prompts.py's v2 rewrite: a single undifferentiated
-arrangement/placement list caused count=1 rows to describe multiple
-individuals while only one was requested, measured at the time as a
-2.5x-6.44x count overshoot specifically on count=1 rows (sea urchin and
-scallop respectively). v6 reintroduced the same shape of bug by moving away
-from the solo/group split without carrying the split itself forward - not
-run at meaningful scale yet, so no fresh measurement of the overshoot this
-time, but the mechanism is identical and already proven to matter.
-
-THE FIX: split "placement" into "placement_solo" / "placement_group" per
-class, gated on count in class_phrase() exactly like arrangements_solo/
-arrangements_group already work in prompts_hunyuan_v2.py through v5.py.
-Sea urchin only had one genuinely singular-safe phrase in v6, so two new
-solo-safe variants were added (matching the existing vocabulary/style) to
-avoid every count=1 urchin row reading identically.
-
-Also fixed in passing: a cosmetic double-space bug in the prompt assembly
-(atmosphere_block had a trailing space that " ".join() then duplicated) -
-harmless to the model, just untidy.
-
-NOT fixed here, left as open findings from the v6 audit, not yet acted on:
-- v6 dropped v2-v5's REALISM_GUARD/OPTICAL_GUARD-equivalent phrasing (no
-  divers/boats/CG, no fisheye/vignette) as part of its "no exclusion-heavy
-  wording" design principle. The 6-image test6 run showed a real fisheye
-  distortion in one image (row 6) - possibly related, not confirmed at
-  n=6. Flagging, not fixing, until there's a decision on whether to bring
-  back a positive-framed equivalent.
-- FRAMING_COUNT_ANCHOR's original trigger (framing="wide" + density="sparse"
-  causing 2-11x overshoot) may not apply the same way now that wide framing
-  text no longer exists in the prompt at all, but nothing explicitly
-  replaced that reinforcement for sparse-density scenes generally.
-
-NOT YET RUN AT FULL SCALE. test6 (v6, before this fix) confirmed the
-camera-distance/habitat-first rewrite genuinely fixes the "product
-photography" complaint - that mechanism is untouched here. This file only
-changes placement-text count-safety; needs its own smoke test and full run
-to confirm the fix holds.
-
---- prompts_hunyuan_v6.py's own docstring follows for everything this file
-didn't touch ---
-
-HunyuanImage-3.0 prompt engine for synthetic underwater benthic survey imagery.
-
-v6 is a structural rewrite of v5. The goal is not to add more negative guards;
-it changes the semantic hierarchy of the prompt so Hunyuan treats the seabed
-habitat as the primary scene and the requested organisms as naturally occurring
-parts of that habitat.
-
-Design principles
------------------
-1. Habitat first, organisms second.
-2. Camera geometry is fixed to an elevated 5-8 m seabed distance.
-3. No random close/mid/wide framing variable. The old framing vocabulary could
-   contradict the mandatory survey distance and encourage specimen-like shots.
-4. Ecological placement is generated separately from morphology. Organisms are
-   described as distributed through terrain rather than staged around rocks.
-5. Avoid exclusion-heavy wording that names unwanted visual concepts. v2/v3
-   showed that explicit lists of unwanted equipment could backfire, so v6 uses
-   positive scene descriptions instead.
-6. The image should contain a large continuous habitat with a substantial water
-   column between camera and seabed. No single organism is the visual anchor.
-7. Keep class-count semantics compatible with the existing manifest format.
-
-This file is intentionally written for HunyuanImage-3.0 Pretrain. It does not
-rely on automatic prompt recaptioning.
-"""
+"""One fix on top of v6: splits each class's single "placement" list into "placement_solo" (used when count==1) and "placement_group" (used otherwise), the same fix already applied once elsewhere in this project."""
 
 from __future__ import annotations
 
@@ -90,13 +6,6 @@ import random
 from dataclasses import asdict, dataclass
 from typing import Optional
 
-
-# ============================================================================
-# CLASS DEFINITIONS
-# ============================================================================
-#
-# v7 (this file): "placement" split into placement_solo (count==1) /
-# placement_group (count>1) - see module docstring. morphology unchanged.
 
 CLASSES: dict[int, dict[str, object]] = {
     0: {
@@ -130,10 +39,6 @@ CLASSES: dict[int, dict[str, object]] = {
             "a low wide sea urchin with tightly packed short dark spines and a subdued natural surface",
             "a dark brown flattened sea urchin with dense short spines and a compact body",
         ],
-        # v6 had only one genuinely singular-safe phrase ("partly tucked
-        # against uneven rock surfaces") - two new solo variants added here,
-        # matching the existing vocabulary, so count=1 rows aren't all
-        # identical.
         "placement_solo": [
             "partly tucked against uneven rock surfaces within the terrain",
             "wedged into a rocky crevice within the surrounding terrain",
@@ -170,10 +75,6 @@ CLASSES: dict[int, dict[str, object]] = {
     },
 }
 
-
-# ============================================================================
-# HABITAT CONSTRUCTION (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
 
 HABITAT_TEMPLATES = [
     "a temperate coastal seabed of sand, gravel, coarse sediment and irregular low rocks",
@@ -227,10 +128,6 @@ BACKGROUND_DEBRIS_VARIATIONS = [
 ]
 
 
-# ============================================================================
-# ECOLOGICAL CONDITIONS (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
-
 SCENE_DENSITIES = {
     "sparse": "a relatively open seabed with large areas of exposed substrate and low biological clutter",
     "moderate": "a naturally varied seabed with rocks, sediment, algae and organisms distributed across broad areas",
@@ -259,10 +156,6 @@ GROUP_BEHAVIOUR = [
     "local clusters remain small and environmentally plausible within surrounding open seabed",
 ]
 
-
-# ============================================================================
-# CAMERA / IMAGE GEOMETRY (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
 
 CAMERA_HEIGHTS = {
     "far_5": "camera approximately 5 meters above the seabed",
@@ -300,10 +193,6 @@ IMAGE_SCALE = [
 ]
 
 
-# ============================================================================
-# ATMOSPHERE / WATER / IMAGING (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
-
 WATER_CONDITIONS = [
     "clear blue-green water with realistic distance-dependent attenuation",
     "natural blue-green underwater water column with mild suspended particulate matter",
@@ -334,10 +223,6 @@ PERSPECTIVE_VARIATIONS = [
     "broad field survey composition following the geometry of the terrain",
 ]
 
-
-# ============================================================================
-# POSITIVE-ONLY GUARDS (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
 
 SURVEY_IDENTITY = (
     "authentic benthic habitat survey image from an elevated underwater inspection camera"
@@ -372,10 +257,6 @@ BROAD_CONTEXT = (
 )
 
 
-# ============================================================================
-# METADATA
-# ============================================================================
-
 @dataclass
 class PromptMetadata:
     seed: int
@@ -401,10 +282,6 @@ class PromptMetadata:
     legacy_framing: Optional[str]
 
 
-# ============================================================================
-# RANDOM HELPERS (unchanged from prompts_hunyuan_v6.py)
-# ============================================================================
-
 def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
     index = rng.randrange(len(values))
     return values[index], index
@@ -427,10 +304,6 @@ def _drop_leading_article(text: str) -> str:
     return text
 
 
-# ============================================================================
-# COUNT RANGES / CLASS FIELD GENERATION
-# ============================================================================
-
 COUNT_RANGES = {
     0: {"sparse": (1, 2), "moderate": (1, 3), "dense": (2, 4)},
     1: {"sparse": (1, 2), "moderate": (2, 4), "dense": (3, 6)},
@@ -439,13 +312,6 @@ COUNT_RANGES = {
 
 
 def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
-    """
-    v7 (this file): picks from placement_solo when count==1, placement_group
-    otherwise - see module docstring for why this split exists (a single
-    undifferentiated list produced singular/plural contradictions that
-    caused a measured 2.5x-6.44x count overshoot on count=1 rows the first
-    time this bug existed, in prompts.py before the v2 rewrite).
-    """
     entry = CLASSES[class_id]
     morphology = rng.choice(entry["morphology"])
     placement = rng.choice(
@@ -471,10 +337,6 @@ def generate_class_counts(
     return {cid: _random_count(rng, cid, density) for cid in sorted(selected)}
 
 
-# ============================================================================
-# PROMPT BUILDER
-# ============================================================================
-
 def build_prompt(
     counts: dict[int, int],
     *,
@@ -484,16 +346,6 @@ def build_prompt(
     camera_height: Optional[str] = None,
     framing: Optional[str] = None,
 ) -> tuple[str, PromptMetadata]:
-    """
-    Construct a habitat-first HunyuanImage-3.0 prompt.
-
-    `framing` is retained only for manifest/API compatibility with older
-    generators. It is not used to control image composition because v6 makes
-    the 5-8 m survey geometry a hard scene property.
-
-    `camera_height` may be one of far_5/far_6/far_7/far_8. For compatibility,
-    the legacy value "far" is accepted and sampled from the four survey heights.
-    """
     rng = random.Random(seed)
 
     if density is None:
@@ -516,7 +368,6 @@ def build_prompt(
             f"Invalid camera height {camera_height!r}. Expected one of {list(CAMERA_HEIGHTS)} or 'far'"
         )
 
-    # Select scene variables in a stable order so seeds remain reproducible.
     habitat, habitat_idx = _choose(rng, HABITAT_TEMPLATES)
     topography, topography_idx = _choose(rng, TOPOGRAPHY_VARIATIONS)
     algae, algae_idx = _choose(rng, ALGAE_VARIATIONS)
@@ -533,7 +384,6 @@ def build_prompt(
     perspective, perspective_idx = _choose(rng, PERSPECTIVE_VARIATIONS)
     image_scale, image_scale_idx = _choose(rng, IMAGE_SCALE)
 
-    # Build class descriptions only after the environment has been selected.
     subject_phrases: list[str] = []
     for class_id in sorted(counts):
         if class_id not in CLASSES:
@@ -550,11 +400,6 @@ def build_prompt(
     else:
         organism_field = "; ".join(subject_phrases)
 
-    # ----------------------------------------------------------------------
-    # Prompt hierarchy:
-    # habitat -> camera geometry -> habitat microstructure -> organisms ->
-    # ecology/composition -> water/light -> imaging.
-    # ----------------------------------------------------------------------
     opening = f"{SURVEY_IDENTITY}. {HABITAT_PRIORITY}. {SPATIAL_CONTINUITY}."
 
     habitat_block = (
@@ -576,8 +421,6 @@ def build_prompt(
         f"{group_behaviour}. {perspective}."
     )
 
-    # v7: dropped the trailing space that was here in v6 - " ".join() below
-    # was adding a second one, producing a double space before "Imaging:".
     atmosphere_block = (
         f"Water and light: {water}. {lighting}."
     )
@@ -590,7 +433,6 @@ def build_prompt(
         [opening, habitat_block, camera_block, organism_block, ecology_block, atmosphere_block, imaging_block]
     )
 
-    # Resolve the exact height in metres for metadata.
     camera_height_m = int(camera_height_key.rsplit("_", 1)[-1])
 
     metadata = PromptMetadata(
@@ -619,10 +461,6 @@ def build_prompt(
 
     return prompt, metadata
 
-
-# ============================================================================
-# CLASS NAME HELPERS
-# ============================================================================
 
 def class_names() -> dict[int, str]:
     return {cid: entry["short"] for cid, entry in CLASSES.items()}

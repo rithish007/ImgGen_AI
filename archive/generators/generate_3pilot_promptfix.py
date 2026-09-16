@@ -1,32 +1,4 @@
-"""Stage 1 generation - 3-pilot flux2dev, prompt-fix variant.
-
-Duplicated from generate_3pilot.py rather than editing it in place, so the
-already-verified flux2dev-bf16 baseline (outputs/3-pilot/flux2dev) stays
-untouched and reproducible. This file's only real difference: it imports
-build_prompt() from prompts_hunyuan.py instead of the shared prompts.py.
-
-Why: prompts_hunyuan.py's two subtractive fixes (reworded SCENE_DENSITIES
-"dense" phrasing, structural rock-formation gate for single-class+dense rows)
-were written to address urchin fusion/bald-dome defects found in Hunyuan's
-3-pilot output. That phrasing exists in the SAME shared prompts.py flux2dev
-also uses - but flux2dev's own 3-pilot run (prompts.py, same manifest/seeds)
-did not show those defects on the same rows. So this isn't chasing a known
-flux2dev bug; it's checking whether the fix is neutral-or-better for
-flux2dev too, which would make it a candidate to promote into the shared
-prompts.py instead of staying Hunyuan-only. Compare this run's output
-against outputs/3-pilot/flux2dev (identical manifest/seeds/model config,
-only the prompt text differs) to isolate the prompt's effect.
-
-    # smoke test first, same as every other model in this pipeline
-    python -m archive.generators.generate_3pilot_promptfix --model flux2dev --manifest manifests/2-pilot.json --limit 3 --out outputs/3-pilot/flux2dev_promptfix_smoke
-
-    # full run
-    python -m archive.generators.generate_3pilot_promptfix --model flux2dev --manifest manifests/2-pilot.json --out outputs/3-pilot/flux2dev_promptfix
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py/generate_3pilot.py, so annotate.py works on these
-outputs unmodified.
-"""
+"""Stage 1 generation - 3-pilot flux2dev, prompt-fix variant."""
 
 from __future__ import annotations
 
@@ -46,9 +18,6 @@ MODELS = {
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
         "supports_negative": False,
-        # ~106-112GB combined bf16 (transformer + text_encoder) - no
-        # quantization this round, split across 2 GPUs instead. See
-        # _load_flux2dev_multi_gpu().
         "approx_vram_gb": 112,
         "multi_gpu": True,
         "lora": None,
@@ -57,14 +26,6 @@ MODELS = {
 
 
 def _load_flux2dev_multi_gpu(cfg: dict):
-    """Load flux2dev at full bf16 precision across 2 GPUs, no quantization.
-
-    Same as generate_3pilot.py's loader - see that file's docstring for the
-    device_map="balanced" vs. manual-placement fallback rationale. Confirmed
-    working via device_map="balanced" on Stanage during the 3-pilot run
-    (job 11148359), so the manual fallback below is expected to stay dead
-    code, kept only for parity with generate_3pilot.py.
-    """
     import torch
     import diffusers
 

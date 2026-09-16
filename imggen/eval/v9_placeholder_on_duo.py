@@ -1,9 +1,4 @@
-"""Detect + score the v9_flux2dev_placeholder_dr model (Dataset B: base +
-placeholder-profile DR) against the real DUO test set. Mirrors
-imggen/eval/v9_duo_on_duo.py's pattern.
-
-    python -m imggen.eval.v9_placeholder_on_duo
-"""
+"""Detect + score the v9_flux2dev_placeholder_dr model (Dataset B: base + placeholder-profile DR) against the real DUO test set."""
 from __future__ import annotations
 
 import json

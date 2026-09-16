@@ -1,17 +1,4 @@
-"""View per-class balance from reports/class_counts/class_counts.json. No GPU, no model
-weights, runs anywhere - matplotlib is the only non-stdlib dependency, and
-only needed for --plot.
-
-Reads whatever engines annotate.py has written into the report (currently
-just "sam3" - see annotate.py's module docstring for why gdino was dropped;
-a stale "gdino" key from before that decision is still shown if present,
-since this script doesn't know which engines are "current").
-
-    python -m imggen.analysis.class_balance
-    python -m imggen.analysis.class_balance --report reports/class_counts/class_counts.json --engine sam3
-    python -m imggen.analysis.class_balance --plot
-    python -m imggen.analysis.class_balance --plot --plot-out outputs/reports/class_balance.png
-"""
+"""View per-class balance from reports/class_counts/class_counts.json."""
 
 from __future__ import annotations
 
@@ -21,9 +8,6 @@ from pathlib import Path
 
 BAR_WIDTH = 30
 
-# dataviz skill's validated categorical palette, slots 1-2 (light mode) -
-# re-validate against that palette if more than 2 engines ever appear here
-# (the validator is external tooling, not a file in this repo).
 ENGINE_COLOURS = {
     "sam3": "#2a78d6",
     "gdino": "#eb6834",
@@ -55,9 +39,6 @@ def print_engine_balance(engine: str, per_class: dict[str, dict]) -> None:
             f"{c['mean_confidence']:>6.2f}  {bar}"
         )
 
-    # Balance ratio: weakest class's instance count as a fraction of the
-    # strongest. 1.0 = perfectly even; low values flag a class worth
-    # reinforcing in the next manifest round.
     min_instances = min(c["instance_count"] for c in per_class.values())
     ratio = min_instances / max_instances if max_instances else 0.0
     weakest = min(per_class.values(), key=lambda c: c["instance_count"])
@@ -67,12 +48,6 @@ def print_engine_balance(engine: str, per_class: dict[str, dict]) -> None:
 
 
 def plot_balance(report: dict, engines: list[str], out_path: Path) -> None:
-    """Grouped bar chart: instance count per class, one bar per engine.
-
-    Color encodes engine (the series/legend dimension) - class identity is
-    already on the x-axis, so re-using visualize_annotations.py's per-class
-    colours here would encode the same thing twice and nothing for engine.
-    """
     import matplotlib
 
     matplotlib.use("Agg")

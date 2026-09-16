@@ -1,33 +1,4 @@
-"""
-Stage 1 generation - HunyuanImage-3.0 v8
-==========================================
-
-Identical to v7 except it fixes a real gap found by measuring v7's actual
-output: `model.generate_image()` accepts an `image_size` parameter (confirmed
-via run_startup_introspection's live signature dump, and already noted as
-'auto' by default all the way back in generate_hunyuan.py's docstring), but
-no version of this script has ever passed it. Left at 'auto', the model
-silently picks its own aspect-ratio bucket per image based on internal
-heuristics - measuring the v7 50-image run's actual PNGs found FIVE distinct
-sizes: 1024x1024 (2), 1152x896 (25), 1216x832 (6), 1280x768 (16), 1344x704 (1).
-flux2dev v8, by contrast, is 1024x1024 on all 50 images (it explicitly passes
-height/width). That asymmetry means ~96% of Hunyuan's images pick up letterbox
-padding when resized for YOLO training while flux2dev's never do - a
-source-correlated artifact worth removing before the next full run.
-
-Fix: pass image_size=IMAGE_SIZE ("1024x1024") explicitly, matching flux2dev's
-format. NOT independently confirmed against the model beyond the fact that
-"1024x1024" is one of the bucket strings the model already produced under
-'auto' (so it's very likely a valid literal, not a guess out of nowhere) -
-per this project's own established rule (see generate_hunyuan.py), don't
-trust an unverified API parameter at full scale. Run with --limit 2 first and
-check the printed size= field before committing to a 50+ image run.
-
-Everything else (prompt engine, camera-height forcing, seed handling,
-sidecar fields) is unchanged from v7. Duplicated rather than editing
-generate_hunyuan_v7.py in place - v7 already produced real output via the
-full 50-image run.
-"""
+"""Identical to v7 except it fixes a real gap found by measuring v7's actual output: `model.generate_image()` accepts an `image_size` parameter (confirmed via run_startup_introspection's live signature dump, and already noted as 'auto' by default all the way back in generate_hunyuan.py's docstring), but no version of this script has ever passed it."""
 
 from __future__ import annotations
 
@@ -46,7 +17,6 @@ IMAGE_SIZE = "1024x1024"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print the live generate_image() signature before generation."""
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -64,9 +34,6 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """Generate one image using the confirmed Hunyuan API, pinned to a fixed
-    square resolution instead of leaving image_size='auto' to pick a
-    different aspect-ratio bucket per image (see module docstring)."""
     return model.generate_image(
         prompt=prompt, seed=seed, image_size=IMAGE_SIZE, stream=True
     )
@@ -75,8 +42,6 @@ def _generate_one(model, prompt: str, seed: int):
 def _build_for_row(row: dict) -> tuple[str, object]:
     counts = {int(k): v for k, v in row["requested_counts"].items()}
 
-    # Force the mandatory survey-distance regime. The prompt engine converts
-    # "far" into a deterministic 5/6/7/8 m selection based on the row seed.
     return build_prompt(
         counts,
         seed=row["seed"],
@@ -146,11 +111,6 @@ def main() -> None:
         moe_impl="eager",
         local_files_only=True,
     )
-    # load_tokenizer()'s real signature is load_tokenizer(self, tokenizer) - it
-    # accepts a tokenizer object OR a repo string, but a string path internally
-    # calls a bare AutoTokenizer.from_pretrained(tokenizer) with no
-    # local_files_only, which can try network access. Build the tokenizer
-    # ourselves with local_files_only=True and pass the object in instead.
     tokenizer = AutoTokenizer.from_pretrained(
         MODEL_REPO, trust_remote_code=True, local_files_only=True
     )

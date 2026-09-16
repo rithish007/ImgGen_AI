@@ -1,15 +1,4 @@
-"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated_scatter-DR
-combined dataset (dataset/v9_flux2dev_duo_scatter_dr, from
-imggen/data/assemble_v9_duo_scatter_dataset.py) and score it against the real
-DUO test set. Same conventions as imggen/train/v9_duo.py: mosaic/mixup off,
-fresh pretrained checkpoint, 100 epochs - deliberately unchanged from the
-duo_calibrated run so this is a clean, isolated test of the DR profile
-change alone (imggen/dr/randomize_v2.py's added blur/contrast/noise stage
-vs the color-only duo_calibrated profile), not a confound with training
-regime changes too.
-
-    python -m imggen.train.v9_duo_scatter
-"""
+"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated_scatter-DR combined dataset (dataset/v9_flux2dev_duo_scatter_dr, from imggen/data/assemble_v9_duo_scatter_dataset.py) and score it against the real DUO test set."""
 from __future__ import annotations
 
 import json

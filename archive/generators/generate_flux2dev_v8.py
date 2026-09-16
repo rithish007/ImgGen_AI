@@ -1,22 +1,4 @@
-"""Stage 1 generation - flux2dev v8 - ONE fix on top of v7: drops "shell"
-from COLOR_PALETTE_GUARD to close the scallop-leak bug found via
-cross-version SAM3 analysis (see prompts_flux2dev_v8.py's docstring for the
-full diagnosis). Everything else - camera_height="far" forcing,
-SUBJECT_SCALE_GUARD, multi-GPU loading - is unchanged from v7.
-
-Duplicated from generate_flux2dev_v7.py rather than editing it in place
-(same "duplicate, don't edit shared files" rule used throughout this
-project). Imports build_prompt() from prompts_flux2dev_v8.py.
-
-    # smoke test first, same as every other model in this pipeline
-    python -m archive.generators.generate_flux2dev_v8 --model flux2dev --manifest manifests/2-pilot.json --limit 3 --out outputs/flux2dev/v8/smoke
-
-    # full run
-    python -m archive.generators.generate_flux2dev_v8 --model flux2dev --manifest manifests/2-pilot.json --out outputs/flux2dev/v8
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - flux2dev v8 - ONE fix on top of v7: drops "shell" from COLOR_PALETTE_GUARD to close the scallop-leak bug found via cross-version SAM3 analysis (see prompts_flux2dev_v8.py's docstring for the full diagnosis)."""
 
 from __future__ import annotations
 
@@ -35,9 +17,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # ~106-112GB combined bf16 (transformer + text_encoder) - no
-        # quantization this round, split across 2 GPUs instead. See
-        # _load_flux2dev_multi_gpu().
         "approx_vram_gb": 112,
         "multi_gpu": True,
         "lora": None,
@@ -46,17 +25,6 @@ MODELS = {
 
 
 def _load_flux2dev_multi_gpu(cfg: dict):
-    """Load flux2dev at full bf16 precision across 2 GPUs, no quantization.
-
-    Primary path: diffusers' device_map="balanced", which lets diffusers'
-    own accelerate-backed dispatch decide the split and - critically -
-    correctly handles moving intermediate tensors between devices during the
-    forward pass.
-
-    Fallback: manual placement (text_encoder -> cuda:1, transformer/vae ->
-    cuda:0). This is NOT guaranteed correct - see generate_flux2dev_v7.py's
-    identical comment for the full explanation of why, unchanged here.
-    """
     import torch
     import diffusers
 

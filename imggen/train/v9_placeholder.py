@@ -1,11 +1,4 @@
-"""Train yolo26x.pt on the flux2dev v9 base + placeholder-DR combined dataset
-(Dataset B: dataset/v9_flux2dev_placeholder_dr, 1800 train / 200 val) and
-score it against the real DUO test set. Same conventions as
-imggen/train/v9_duo.py: mosaic/mixup off, fresh pretrained checkpoint, 100
-epochs.
-
-    python -m imggen.train.v9_placeholder
-"""
+"""Train yolo26x.pt on the flux2dev v9 base + placeholder-DR combined dataset (Dataset B: dataset/v9_flux2dev_placeholder_dr, 1800 train / 200 val) and score it against the real DUO test set."""
 from __future__ import annotations
 
 import json

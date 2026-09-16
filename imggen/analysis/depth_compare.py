@@ -1,38 +1,4 @@
-"""Stage 3a candidate check: DA V2 Large vs Apple Depth Pro, head to head.
-
-Not a pipeline stage itself - a one-off comparison to decide which model
-Stage 3a's range estimation should use. Runs both models on the same clean
-Stage 1 images and produces three figures:
-
-  comparison.png       [original | DA-V2 | Depth Pro], whole-image, globally
-                        normalized per image. Good for overall plausibility,
-                        but Depth Pro's raw output is metric depth dominated
-                        by the far background's range, so this view compresses
-                        near-field detail (where the target classes live) into
-                        a narrow band - don't read "less detail" from this one.
-  detail_comparison.png  Cropped to the near-field/object region (bottom 65% -
-                        skips the open-water backdrop at the top of frame) and
-                        LOCALLY normalized, plus a Sobel edge-magnitude map per
-                        model. This is the fair way to compare fine detail /
-                        boundary sharpness, since it isn't diluted by the far
-                        background's dynamic range.
-  fine_tuned_comparison.png  Raw vs guided-filter-refined depth, both models.
-                        Not fine-tuning (no training, no data problem) - a
-                        classic edge-aware filter (He/Sun/Tang 2010) that uses
-                        the RGB image as a guide to snap the depth map's
-                        transitions to the guide's edges. Pure numpy/scipy,
-                        no model weights.
-
-Both models are general (non-underwater) by design: Stage 1 renders clean,
-colour-neutral water on purpose (see prompts.py's SCENE_WATER_PHRASE comment),
-so the images these models see have none of the attenuation/backscatter/
-colour-cast domain shift that underwater-specific depth models exist to
-correct for - see AI_Pipeline_Test_Plan.md's Stage 3 section for the full
-reasoning on why underwater-fine-tuned candidates were not tried here.
-
-    python -m imggen.analysis.depth_compare
-    python -m imggen.analysis.depth_compare --images outputs/1-pilot/klein/pilot_001_klein.png ...
-"""
+"""Stage 3a candidate check: DA V2 Large vs Apple Depth Pro, head to head."""
 
 from __future__ import annotations
 
@@ -44,9 +10,9 @@ from pathlib import Path
 from imggen.analysis.depth_utils import guided_filter, local_norm, sobel_magnitude
 
 DEFAULT_IMAGES = [
-    "outputs/1-pilot/klein/pilot_001_klein.png",  # single class, sparse, close-up
-    "outputs/1-pilot/klein/pilot_007_klein.png",  # triple class, moderate, mid
-    "outputs/1-pilot/klein/pilot_012_klein.png",  # single class, dense, wide (the starfish-overshoot row)
+    "outputs/1-pilot/klein/pilot_001_klein.png",
+    "outputs/1-pilot/klein/pilot_007_klein.png",
+    "outputs/1-pilot/klein/pilot_012_klein.png",
 ]
 
 MODELS = {
@@ -60,22 +26,11 @@ MODELS = {
         "metric": True,
         "kind": "transformers",
     },
-    # Added 2026-08-07: Ultralytics YOLO26's native depth task (shipped
-    # 2026-07-29, https://docs.ultralytics.com/tasks/depth) - a completely
-    # different loading/inference API (ultralytics package, not a
-    # transformers pipeline), hence the separate run_yolo26() path below and
-    # the "kind" dispatch in main(). Metric depth like Depth Pro, but a much
-    # smaller/faster model family (n/s/m/l/x) - included here specifically to
-    # see whether that size tradeoff costs real accuracy on this domain.
     "yolo26n_depth": {
         "repo": "yolo26n-depth.pt",
         "metric": True,
         "kind": "ultralytics",
     },
-    # Added 2026-08-08: nano's edge maps were visibly noisier than DA-V2/Depth
-    # Pro at the near-field object-boundary level (fuzzy starfish outlines,
-    # less clean rock separation) - x is the largest variant in the family
-    # (109MB vs nano's 12MB), included to see whether that closes the gap.
     "yolo26x_depth": {
         "repo": "yolo26x-depth.pt",
         "metric": True,
@@ -122,9 +77,6 @@ def run_yolo26_depth(weights: str, image_paths: list[Path]) -> tuple[list, list[
         t0 = time.perf_counter()
         results = model(str(path), verbose=False)
         elapsed = time.perf_counter() - t0
-        # result.depth.data is already an (H, W) torch.Tensor in metres -
-        # same convention run_model() returns, so downstream save_* functions
-        # (.squeeze().to(torch.float32).cpu().numpy()) work unmodified.
         depth_maps.append(results[0].depth.data)
         durations.append(elapsed)
         print(f"  {path.name}: {elapsed:.2f}s")
@@ -157,9 +109,6 @@ def save_comparison(image_paths: list[Path], results: dict[str, list], out_path:
         for col, key in enumerate(model_keys, start=1):
             depth = results[key][row]
             depth_np = depth.squeeze().to(torch.float32).cpu().numpy()
-            # Per-image normalization for display only - relative ordering
-            # within the image is what Stage 3a actually needs, so this is
-            # the right thing to eyeball, not absolute scale across models.
             axes[row, col].imshow(local_norm(depth_np), cmap="inferno")
             axes[row, col].set_title(key, fontsize=9)
             axes[row, col].axis("off")
@@ -177,10 +126,6 @@ def crop_bottom(arr, frac: float = 0.65):
 
 
 def save_detail_comparison(image_paths: list[Path], results: dict[str, list], out_path: Path) -> None:
-    """Fair fine-detail view: crop to the near-field region, normalize
-    locally (not against the whole image's range), and show Sobel edge
-    magnitude alongside the depth map itself.
-    """
     import numpy as np
     import torch
     import matplotlib
@@ -226,9 +171,6 @@ def save_detail_comparison(image_paths: list[Path], results: dict[str, list], ou
 
 
 def save_finetuned_comparison(image_paths: list[Path], results: dict[str, list], out_path: Path) -> None:
-    """Raw vs guided-filter-refined depth (RGB luminance as the edge guide),
-    both models, near-field crop. No training - see guided_filter()'s docstring.
-    """
     import numpy as np
     import torch
     import matplotlib

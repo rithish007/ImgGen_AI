@@ -1,11 +1,4 @@
-"""Train yolo26x.pt on dataset/v9_flux2dev (base, no DR) with the same
-heavy-augmentation/optimizer regime as imggen/train/v9_duo_v3.py - see that
-module's docstring for full rationale. This is the base-only control run:
-deliberately identical hyperparameters across all four v2/v3 runs so the
-DR profile (or its absence) is the only varying factor between them.
-
-    python -m imggen.train.v9_v2
-"""
+"""Train yolo26x.pt on dataset/v9_flux2dev (base, no DR) with the same heavy-augmentation/optimizer regime as imggen/train/v9_duo_v3.py - see that module's docstring for full rationale."""
 from __future__ import annotations
 
 import json

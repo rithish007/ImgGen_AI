@@ -1,62 +1,4 @@
-"""Stage 2 annotation-quality audit -- the SAM3 *annotator ceiling*.
-
-Every detector in this project is trained on SAM3-generated labels, never on
-human annotation, so the whole experiment is bounded above by how good those
-labels are (see Chapter 4, "Detector-generated labels" threat). That ceiling
-is not something the pipeline measures for free: a generated image has no
-ground truth, so the only way to quantify SAM3's precision/recall is to put a
-human in the loop on a sample. This module runs that loop in two steps.
-
-    build   sample N images, draw the SAM3 boxes with a per-box index, and
-            write a review_template.json the reviewer fills in by hand.
-    score   read the (filled) template back and compute per-class precision,
-            recall, F1 and a localisation-quality rate -- the ceiling numbers
-            that go into Chapter 5's annotation-quality section.
-
-The reviewer never edits the label files. They only mark, per predicted box,
-whether it is a true or false positive (and whether the box is tight), and
-per image how many real instances of each class SAM3 *missed*. Precision comes
-from tp/(tp+fp); recall from tp/(tp+missed); everything else follows.
-
-    # 1. make a 60-image review pack from the v9 production labels
-    python -m imggen.analysis.annotation_audit build \
-        --images-dir outputs/flux2dev/v9 \
-        --labels-dir outputs/flux2dev/v9/labels/sam3 \
-        --n 60 --seed 7 \
-        --out-dir reports/annotation_audit/v9
-
-    # 2. (human fills reports/annotation_audit/v9/review_template.json)
-
-    # 3. compute the ceiling
-    python -m imggen.analysis.annotation_audit score \
-        --review reports/annotation_audit/v9/review_template.json \
-        --out reports/annotation_audit/v9_ceiling.json
-
-The review_template.json schema (one entry per sampled image)::
-
-    {
-      "meta": {...},                 # written by build, do not edit
-      "images": [
-        {
-          "image": "..._0007.png",
-          "boxes": [
-            {"id": 0, "class": "scallop", "box": [cx,cy,w,h],
-             "verdict": null,        # reviewer -> "tp" | "fp"
-             "localisation": null},  # reviewer -> "tight" | "loose"  (tp only)
-            ...
-          ],
-          "missed": {                # reviewer -> count of real instances
-            "starfish": null,        #            SAM3 gave NO box for
-            "sea_urchin": null,
-            "scallop": null
-          }
-        },
-        ...
-      ]
-    }
-
-Pure PIL/stdlib -- no GPU, no model weights, runs anywhere.
-"""
+"""Stage 2 annotation-quality audit -- the SAM3 *annotator ceiling*."""
 
 from __future__ import annotations
 
@@ -68,17 +10,12 @@ from pathlib import Path
 from imggen.prompts.base import class_names
 from imggen.analysis.visualize_annotations import CLASS_COLOURS
 
-CLASS_NAMES = class_names()  # {0: "starfish", 1: "sea_urchin", 2: "scallop"}
+CLASS_NAMES = class_names()
 NAME_TO_ID = {v: k for k, v in CLASS_NAMES.items()}
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 
-# ---------------------------------------------------------------------------
-# label IO
-# ---------------------------------------------------------------------------
-
 def read_label(path: Path) -> list[tuple[int, list[float]]]:
-    """YOLO txt -> [(class_id, [cx, cy, w, h]), ...]; empty/missing -> []."""
     if not path.exists():
         return []
     boxes = []
@@ -98,13 +35,7 @@ def find_image(images_dir: Path, stem: str) -> Path | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# build: sample + draw numbered overlays + emit the review template
-# ---------------------------------------------------------------------------
-
 def draw_numbered_boxes(image_path: Path, boxes: list[tuple[int, list[float]]]) -> "Image.Image":
-    """Overlay every box with its per-image index, so the reviewer can point at
-    box '3' in the template. Colour matches visualize_annotations (per class)."""
     from PIL import Image, ImageDraw, ImageFont
 
     img = Image.open(image_path).convert("RGB")
@@ -183,10 +114,6 @@ def cmd_build(args: argparse.Namespace) -> None:
     print(f"  template -> {template_path}  (fill verdict/localisation/missed by hand)")
 
 
-# ---------------------------------------------------------------------------
-# score: read the filled template -> ceiling metrics
-# ---------------------------------------------------------------------------
-
 def _prf(tp: int, fp: int, fn: int) -> dict:
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
@@ -235,7 +162,6 @@ def cmd_score(args: argparse.Namespace) -> None:
 
     overall = _prf(tot_tp, tot_fp, tot_fn)
     overall["localisation_tight_rate"] = round(tot_tight / tot_tp, 4) if tot_tp else 0.0
-    # macro = unweighted mean over the 3 classes; robust to scallop's rarity
     overall["macro_precision"] = round(
         sum(result["per_class"][n]["precision"] for n in per_class) / len(per_class), 4)
     overall["macro_recall"] = round(
@@ -265,8 +191,6 @@ def cmd_score(args: argparse.Namespace) -> None:
     print(f"  macro P/R: {o['macro_precision']:.3f} / {o['macro_recall']:.3f}   "
           f"localisation-tight: {o['localisation_tight_rate']:.3f}")
 
-
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

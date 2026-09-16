@@ -1,10 +1,9 @@
-"""One-off cross-version SAM3 analysis. Not meant to be reusable."""
+"""One-off cross-version SAM3 analysis."""
 import json, glob, os
 from collections import defaultdict
 
 CLASS_NAMES = {0: 'starfish', 1: 'sea urchin', 2: 'scallop'}
 
-# (label, images_dir, labels_dir, sidecar_glob_suffix)
 DATASETS = [
     ("flux2dev_v3", "outputs/flux2dev/v3", "outputs/flux2dev/v3/labels/sam3"),
     ("flux2dev_v4", "outputs/flux2dev/v4", "outputs/flux2dev/v4/labels/sam3"),
@@ -26,8 +25,8 @@ for label, img_dir, lab_dir in DATASETS:
     detected_total = defaultdict(int)
     n_images = 0
     n_exact = 0
-    zero_req_extra = defaultdict(int)  # instances detected of a class when 0 requested
-    zero_req_images = defaultdict(set)  # image ids where class was falsely detected despite 0 requested
+    zero_req_extra = defaultdict(int)
+    zero_req_images = defaultdict(set)
 
     for jf in sorted(glob.glob(f"{img_dir}/*.json")):
         meta = json.load(open(jf, encoding='utf-8'))
@@ -68,7 +67,6 @@ for label, img_dir, lab_dir in DATASETS:
         "zero_req_image_count": {k: len(v) for k, v in zero_req_images.items()},
     }
 
-# Print master table
 print(f"{'dataset':<30} {'n':>3} {'exact%':>7} | {'sf_req':>6}{'sf_det':>7}{'sf_r':>6} | {'ur_req':>6}{'ur_det':>7}{'ur_r':>6} | {'sc_req':>6}{'sc_det':>7}{'sc_r':>6}  sc_leak_imgs")
 for label, r in results.items():
     n = r['n_images']

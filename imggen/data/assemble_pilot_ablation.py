@@ -1,30 +1,4 @@
-"""Pilot-scale (50+50 image) YOLO dataset assembly for the 3-way DR ablation
-requested for the RunPod YOLO26x pipeline check:
-
-    dataset/pilot_base/         flux2dev v8 + hunyuan v7 base images only
-    dataset/pilot_dr/           base + non-anchored DR (dr_runs/v1/dr)
-    dataset/pilot_dr_anchored/  base + anchored DR (dr_runs/v1/dr_anchored)
-
-This is a PIPELINE CHECK at 50-image-per-model scale, not the production
-dataset (that's the pending 1000-image/model SLURM job on Stanage). Numbers
-out of this run should not be trusted as a real DR-vs-no-DR verdict.
-
-Label provenance note: flux2dev's DR and DR-anchored copies have their own
-independently-run SAM3 labels (outputs/flux2dev/v8/dr_runs/v1/labels/sam3{,_anchored}).
-hunyuan's DR and DR-anchored copies were never separately auto-annotated -
-only hunyuan's base images have SAM3 labels. Since DR is a pixel-only
-transform (no geometry change - see imggen/data/annotate.py's docstring), the base
-label is reused for hunyuan's DR/anchored copies. This is a known asymmetry
-in labeling methodology between the two models for this pilot check; the
-production run should run SAM3 on both models' DR outputs for consistency.
-
-A base image and its DR/anchored copies always land in the same split (train
-or val) - grouped before splitting so a recoloured copy of a val image can
-never leak into train.
-
-    python -m imggen.data.assemble_pilot_ablation
-    python -m imggen.data.assemble_pilot_ablation --val-per-model 5
-"""
+"""Pilot-scale (50+50 image) YOLO dataset assembly for the 3-way DR ablation requested for the RunPod YOLO26x pipeline check: dataset/pilot_base/ flux2dev v8 + hunyuan v7 base images only dataset/pilot_dr/ base + non-anchored DR (dr_runs/v1/dr) dataset/pilot_dr_anchored/ base + anchored DR (dr_runs/v1/dr_anchored) This is a PIPELINE CHECK at 50-image-per-model scale, not the production dataset (that's the pending 1000-image/model SLURM job on Stanage)."""
 from __future__ import annotations
 
 import argparse
@@ -53,10 +27,10 @@ SOURCES = {
         "base_lbl": Path("outputs/hunyuan/v7/labels/sam3"),
         "base_glob": "2-pilot_*_hunyuan.png",
         "dr_img": Path("outputs/hunyuan/v7/dr_runs/v1/dr"),
-        "dr_lbl": None,  # no independent SAM3 pass - reuse base label
+        "dr_lbl": None,
         "dr_suffix": "_dr",
         "anchored_img": Path("outputs/hunyuan/v7/dr_runs/v1/dr_anchored"),
-        "anchored_lbl": None,  # no independent SAM3 pass - reuse base label
+        "anchored_lbl": None,
         "anchored_suffix": "_anchored_dr",
     },
 }

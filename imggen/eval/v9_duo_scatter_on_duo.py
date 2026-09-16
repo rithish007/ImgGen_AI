@@ -1,10 +1,4 @@
-"""Detect + score the v9_flux2dev_duo_scatter_dr model (900 base + 900
-duo_calibrated_scatter DR images, 1800 train / 200 val) against the real DUO
-test set. Mirrors imggen/eval/v9_duo_on_duo.py's pattern for the duo_calibrated
-(colour-only) model, so the two are directly comparable.
-
-    python -m imggen.eval.v9_duo_scatter_on_duo
-"""
+"""Detect + score the v9_flux2dev_duo_scatter_dr model (900 base + 900 duo_calibrated_scatter DR images, 1800 train / 200 val) against the real DUO test set."""
 from __future__ import annotations
 
 import json

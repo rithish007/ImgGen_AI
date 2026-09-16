@@ -1,17 +1,4 @@
-"""Runs the 4 trained Stage 5 regimes against the real-image eval set built
-by prepare_real_eval.py (dataset/real_eval/, from DUO_Dataset's actual test
-split with real ground truth) - the sim-to-real number missing until now.
-
-Stage 5's own runs/train/summary.json is train-set-only (no held-out val
-split at pilot scale, see the plan doc's Stage 5 section) - optimistic by
-construction. This is the first quantitative measurement of whether any of
-these regimes actually generalizes to real underwater photos, using
-Ultralytics' own mAP/precision/recall (same metric family as summary.json,
-directly comparable).
-
-    python -m imggen.eval.real
-    python -m imggen.eval.real --regimes original_aug original_dr_aug
-"""
+"""Runs the 4 trained Stage 5 regimes against the real-image eval set built by prepare_real_eval.py (dataset/real_eval/, from DUO_Dataset's actual test split with real ground truth) - the sim-to-real number missing until now."""
 
 from __future__ import annotations
 

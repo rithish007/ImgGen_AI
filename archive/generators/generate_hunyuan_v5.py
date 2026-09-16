@@ -1,39 +1,4 @@
-"""Stage 1 generation - HunyuanImage-3.0 v5 - two fixes on top of v4:
-drops "shell" from COLOR_PALETTE_GUARD (closes the scallop-leak bug), and
-forces camera_height="far" (closes the "product photograph" framing
-complaint by actually using the CAMERA_HEIGHTS["far"] text that v4 wrote
-but never applied). See prompts_hunyuan_v5.py's module docstring for the
-full diagnosis of both.
-
-Duplicated from generate_hunyuan_v4.py rather than editing it in place
-(same "duplicate, don't edit files that produced real output" rule used
-throughout this project - v4 already ran a full 50-image job). Imports
-build_prompt() from prompts_hunyuan_v5.py. UNLIKE v4, this file DOES force
-camera_height="far" on every row - v4 deliberately left it random to
-isolate the equipment-hallucination revert as the only variable under
-test; that isolation already paid off (confirmed 0/50 equipment-
-hallucination at full scale), so this file re-adds the camera-distance fix
-now that it's safe to test as its own variable. Same combination (forced
-"far" + a short subject-scale guard) already confirmed clean on flux2dev
-v7's full 50-image visual review this session - not a new, untested idea.
-
-Everything else (model loading/call path, VRAM/node requirements, separate
-conda env) is unchanged from generate_hunyuan_v4.py / generate_hunyuan.py.
-No token cap to manage here (Hunyuan has none).
-
-NOT YET RUN. Needs a smoke test and then a full 50-image run before
-trusting either fix holds at scale.
-
-    # smoke test first
-    python -m archive.generators.generate_hunyuan_v5 --manifest manifests/2-pilot.json --limit 3 --out outputs/hunyuan/v5/smoke
-
-    # full run
-    python -m archive.generators.generate_hunyuan_v5 --manifest manifests/2-pilot.json --out outputs/hunyuan/v5
-
-Outputs PNG + sidecar JSON per image under outputs/<out>/ - same file-naming
-convention as generate_hunyuan.py, so annotate.py works on these outputs
-unmodified.
-"""
+"""Stage 1 generation - HunyuanImage-3.0 v5 - two fixes on top of v4: drops "shell" from COLOR_PALETTE_GUARD (closes the scallop-leak bug), and forces camera_height="far" (closes the "product photograph" framing complaint by actually using the CAMERA_HEIGHTS["far"] text that v4 wrote but never applied)."""
 
 from __future__ import annotations
 
@@ -50,11 +15,6 @@ MODEL_REPO = "tencent/HunyuanImage-3.0"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print generate_image()'s real signature before trusting any assumption
-    about its parameters. This is the first thing that happens after load,
-    specifically so a smoke-test run doubles as API discovery rather than us
-    guessing parameter names and getting a wall of stack trace instead.
-    """
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -66,9 +26,6 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """seed is a confirmed, directly-supported kwarg - see generate_hunyuan.py's
-    module docstring (inspect.signature() captured on the live model during
-    the 3-pilot smoke test). No detection dance needed."""
     return model.generate_image(prompt=prompt, seed=seed, stream=True)
 
 
@@ -125,7 +82,7 @@ def main() -> None:
     if hasattr(model, "hf_device_map"):
         print(f"device_map: {model.hf_device_map}")
 
-    run_startup_introspection(model)  # kept for visibility - flags upstream API changes early
+    run_startup_introspection(model)
 
     durations: list[float] = []
     for row in rows:

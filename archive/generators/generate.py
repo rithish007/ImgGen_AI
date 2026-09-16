@@ -1,44 +1,4 @@
-"""Stage 0.5 / Stage 1 image generation.
-
-klein, plus flux2dev as a future candidate. SD3.5 was dropped after the
-smoke-test comparison: it botched sea urchin spine anatomy (short blunt bumps
-rather than thin sharp spines, a real shape defect) and consistently shot
-every class as an isolated macro product photo rather than the wide-angle
-survey-camera framing this pipeline needs - Klein respected that framing and
-SD3.5 did not.
-
-flux2dev and qwenimage were added after the 20-image klein pilot showed a
-visible instance-count overshoot (pilot_012 asked for 7 starfish, rendered
-~9-10), to smoke-test as possible replacements. qwenimage was dropped after
-that test and its weights deleted from the pod: it rendered only ~5 starfish
-for the same 7-instance prompt (undershoot, not a fix) and additionally put a
-visible robot/rover in frame - an out-of-distribution object klein never
-produces, and worse than klein's problem, not better. flux2dev remains a
-**future** candidate, not yet tested: its transformer+text-encoder combo needs
-`enable_model_cpu_offload()` to fit at all (see below), and that offload path
-already crashed this pod once on qwenimage's pre-quantization attempt by
-exceeding the container's real RAM cap (~58GB via /sys/fs/cgroup/memory.max,
-not the much larger host total `free -h` reports) - worth retrying on a
-higher-RAM pod. See the plan doc's Stage 1 section for the full comparison.
-
-  - flux2dev: black-forest-labs/FLUX.2-dev, the 32B undistilled model Klein
-    was distilled from. Its Mistral Small 3.1 (~24B) text encoder makes the
-    combined footprint too large for a 47GB card in plain bf16, so both the
-    transformer and text encoder are fp8-quantized on load (see
-    `_build_quantization_config`) - needs the `torchao` dependency and a GPU
-    with compute capability >= 8.9 (RTX 4090/6000 Ada and newer) for native
-    fp8 tensor cores. Same non-commercial BFL license as klein.
-
-    # no GPU needed - check prompts before you pay for a pod
-    python -m archive.generators.generate --model klein --manifest manifests/smoke.json --dry-run
-
-    # on the pod
-    python -m archive.generators.generate --model klein    --manifest manifests/smoke.json
-    python -m archive.generators.generate --model flux2dev --manifest manifests/smoke.json
-    python -m archive.generators.generate --model klein --manifest manifests/pilot.json
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/.
-"""
+"""Stage 0.5 / Stage 1 image generation."""
 
 from __future__ import annotations
 
@@ -67,23 +27,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # fp8 transformer (~32GB) + fp8 text encoder (~24GB) never coexist on
-        # GPU at once - load_pipeline's offload fallback keeps peak usage near
-        # whichever single component is larger, not their sum. BUT: RunPod
-        # containers can cap system RAM well below what `free -h` reports (see
-        # /sys/fs/cgroup/memory.max - one pod measured ~58GB against a 503GB
-        # host). enable_model_cpu_offload() needs BOTH components resident in
-        # CPU RAM at once (each is swapped to GPU in turn, not deleted), which
-        # can exceed that cap even though neither alone would. Verify
-        # memory.max before running this on a new pod.
-        #
-        # UNVERIFIED, flag before running on an RTX A6000 specifically: native
-        # fp8 tensor cores need compute capability >= 8.9 (RTX 4090/6000 Ada,
-        # Hopper). The RTX A6000 (Ampere) is compute capability 8.6 - NOT the
-        # same card as the "RTX 6000 Ada" this fp8 path was designed around,
-        # despite the similar name. torchao may fall back to slower emulated
-        # fp8 on 8.6, or may error - untested on this specific card. Run this
-        # model's Stage 0.5 smoke test (4 images) before committing to 50.
         "approx_vram_gb": 32,
         "quantize_components": ["transformer", "text_encoder"],
         "lora": None,
@@ -94,7 +37,6 @@ MODELS = {
         "steps": 28,
         "guidance": 4.5,
         "guidance_param": "guidance_scale",
-        # 8B, bf16 - comfortably under 48GB with no offload/quantization.
         "approx_vram_gb": 16,
         "quantize_components": [],
         "lora": None,
@@ -104,15 +46,7 @@ MODELS = {
         "pipeline": "DiffusionPipeline",
         "steps": 50,
         "guidance": 4.0,
-        # Qwen-Image's __call__ uses true_cfg_scale, not guidance_scale -
-        # confirmed from its model card's example code.
         "guidance_param": "true_cfg_scale",
-        # Base Qwen-Image is 20B - at klein's own observed ~3.2GB/B bf16
-        # overhead (29GB for 9B, weights+text-encoder+activations, not just
-        # raw params) this could land anywhere from ~40GB to over 48GB.
-        # UNVERIFIED - load_pipeline()'s existing OOM->cpu-offload fallback
-        # should catch it either way, but expect this to be the model most
-        # likely to need offload on anything under ~64GB. Smoke-test first.
         "approx_vram_gb": 40,
         "quantize_components": [],
         "lora": None,
@@ -123,57 +57,17 @@ MODELS = {
         "steps": 8,
         "guidance": 1.0,
         "guidance_param": "true_cfg_scale",
-        "approx_vram_gb": 40,  # same base model as qwen_image - the LoRA adds negligible size
+        "approx_vram_gb": 40,
         "quantize_components": [],
-        # Lightning is a LoRA on top of the base model, not a separate
-        # checkpoint - load_pipeline() applies this via load_lora_weights()
-        # after from_pretrained(). 8 steps / true_cfg_scale=1.0 replace the
-        # base model's own 50-step/true_cfg_scale=4.0 defaults entirely; do
-        # not mix the two configs.
         "lora": {
             "repo": "lightx2v/Qwen-Image-Lightning",
             "weight_name": "Qwen-Image-Lightning-8steps-V1.0.safetensors",
         },
     },
-    # z_image_turbo (Tongyi-MAI/Z-Image-Turbo) was dropped entirely - its
-    # ZImagePipeline needs unreleased diffusers PRs (#12703, #12715), which
-    # meant running diffusers from git source for every model in this
-    # comparison. That git build's TorchAoConfig was missing an attribute
-    # transformers==5.14.1 expects, crashing flux2dev's quantization path -
-    # a real bug in a model that never needed the newer diffusers at all.
-    # Dropping Z-Image-Turbo removes the only reason to leave the pinned,
-    # already-verified diffusers==0.39.0 (which has had Qwen-Image support
-    # since 0.35.0, so nothing else in this comparison loses anything).
 }
 
 
 def _build_quantization_config(components: list[str]):
-    """fp8 weight-only quantization for the given pipeline component names.
-
-    Requires torchao and a >=8.9 compute capability GPU (RTX 4090/6000 Ada,
-    Hopper, Blackwell) for native fp8 tensor cores; falls back to (slower)
-    emulated fp8 on older cards.
-
-    Defensive attribute sets - NOT a git-dev-build-only issue. Even the
-    pinned, stable diffusers==0.39.0's TorchAoConfig doesn't set every
-    attribute transformers==5.14.1's torchao integration reads unconditionally
-    for this specific dual-component (diffusion transformer + text-encoder)
-    quantization path. Two found so far, one at a time, each surfacing only
-    after the previous one was patched:
-      - include_input_output_embeddings (transformers/quantizers/quantizer_torchao.py)
-      - untie_embedding_weights (transformers/integrations/torchao.py convert())
-    This combination (PipelineQuantizationConfig spanning a diffusers
-    transformer AND a transformers text encoder together) was apparently
-    never exercised end-to-end before this pipeline tried it - flux2dev was
-    "kept as a future candidate, not yet tested" through the original Stage 0
-    setup, so nobody hit this until now. If a THIRD distinct missing
-    attribute shows up, stop patching one at a time and treat it as this
-    pairing not reliably supporting this quantization path at all, rather
-    than continuing whack-a-mole fixes.
-    False = don't additionally quantize/untie embedding layers, the
-    conservative default (preserves embedding precision; only the flagged
-    components above get fp8).
-    """
     from diffusers import PipelineQuantizationConfig, TorchAoConfig
     from torchao.quantization import Float8WeightOnlyConfig
 
@@ -189,12 +83,6 @@ def _build_quantization_config(components: list[str]):
 
 
 def load_pipeline(model_key: str, offload_mode: str):
-    """Load the pipeline, falling back to CPU offload if it will not fit.
-
-    Weights land in CPU RAM first, so the OOM fallback costs a device transfer
-    rather than a re-download. Note this fallback is not a safe last resort for
-    every model - see flux2dev's RAM-cap comment above.
-    """
     import torch
     import diffusers
 

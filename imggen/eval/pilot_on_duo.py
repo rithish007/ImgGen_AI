@@ -1,21 +1,4 @@
-"""Detect + score the 3 pilot-ablation models (pilot_base, pilot_dr,
-pilot_dr_anchored) against the real DUO test set (dataset/real_eval, 778
-images, class-remapped to starfish/sea_urchin/scallop).
-
-For each model:
-    1. model.predict() over dataset/real_eval/images, saving annotated
-       detection images + YOLO-format .txt predictions with confidences to
-       a clearly named folder under runs/predict_duo/<variant>_detections/.
-    2. model.val() with plots=True against dataset/real_eval/data.yaml to
-       produce a confusion matrix, PR/F1 curves, and per-class P/R/AP50/
-       AP50-95 under runs/eval_duo/<variant>/.
-
-Writes runs/eval_duo/comparison.json - per-class + overall metrics for all
-3 models side by side, plus per-class GT vs predicted instance counts (at
-the predict() confidence threshold) to show over/under-detection bias.
-
-    python -m imggen.eval.pilot_on_duo
-"""
+"""Detect + score the 3 pilot-ablation models (pilot_base, pilot_dr, pilot_dr_anchored) against the real DUO test set (dataset/real_eval, 778 images, class-remapped to starfish/sea_urchin/scallop)."""
 from __future__ import annotations
 
 import json

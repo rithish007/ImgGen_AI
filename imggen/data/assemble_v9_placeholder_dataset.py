@@ -1,25 +1,4 @@
-"""Build a YOLO-format dataset from flux2dev v9's base images COMBINED with
-their placeholder DR'd copies (base images get domain-randomized into
-additional variants, not replaced - matching this project's established DR
-convention, see imggen/data/assemble_dataset.py). 900/100 train/val split by base
-image identity (a base image and its DR'd copy always land in the same
-split, so a recoloured copy of a val image can never leak into train).
-
-Mirrors imggen/data/assemble_v9_duo_dataset.py exactly, pointed at the
-placeholder profile instead of duo_calibrated.
-
-Run after imggen/data/annotate.py has produced outputs/flux2dev/v9/labels/sam3/
-(base, already exists).
-
-The DR'd copy reuses the base image's label file verbatim rather than an
-independent SAM3 re-annotation of the DR'd pixels - domain randomization is
-pixel-only (Jerlov/Akkaynak-Treibitz color and attenuation transform), so
-object positions never change and the base boxes are still exactly correct -
-see assemble_v9_duo_dataset.py's docstring for the measured SAM3-recall-gap
-finding that motivated this project-wide convention.
-
-    python -m imggen.data.assemble_v9_placeholder_dataset
-"""
+"""Build a YOLO-format dataset from flux2dev v9's base images COMBINED with their placeholder DR'd copies (base images get domain-randomized into additional variants, not replaced - matching this project's established DR convention, see imggen/data/assemble_dataset.py)."""
 from __future__ import annotations
 
 import argparse
@@ -28,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
-RESOLUTION = 1024  # native - see assemble_v9_dataset.py's docstring for why this isn't a fixed downscale
+RESOLUTION = 1024
 CLASS_NAMES = {0: "starfish", 1: "sea_urchin", 2: "scallop"}
 
 
@@ -53,7 +32,6 @@ def main() -> None:
             raise SystemExit(f"missing base image for {label_path} (expected {base_img})")
 
         dr_img = args.dr_images_dir / f"{stem}{args.dr_suffix}.png"
-        # DR is pixel-only, so the base label file is still exactly correct for it.
         dr_pair = (dr_img, label_path) if dr_img.exists() else None
         if dr_pair is None:
             missing_dr += 1

@@ -1,37 +1,4 @@
-"""Stage 1 generation - HunyuanImage-3.0, EXPERIMENTAL - camera_height forced
-to "far" (5-8m above the seabed) plus a subject-scale guard.
-
-Duplicated from generate_hunyuan_v2.py rather than editing it in place (that
-file already produced real output - smoke_hunyuan_povfix - same
-"duplicate, don't edit files that produced real output" rule used throughout
-this project). Imports build_prompt() from prompts_hunyuan_v3.py - see that
-file's module docstring for the full rationale, same as flux2dev's
-prompts_v6.py: two prior camera-distance experiments (framing swap,
-camera_height="high") both came back visually negative, both stayed in a
-narrow 0.5-2m band. This forces camera_height="far" (~5-8m,
-CAMERA_HEIGHTS["far"] in prompts_hunyuan_v3.py) on every row, plus
-SUBJECT_SCALE_GUARD (explicit "small in frame" language, untested lever).
-NOT touching water colour/clarity - Stage 3 owns that separately.
-
-Everything else (model loading/call path, VRAM/node requirements, separate
-conda env) is unchanged from generate_hunyuan.py/generate_hunyuan_v2.py -
-see those files' docstrings for the full HunyuanImage-3.0 integration
-notes. No token cap to re-verify here (Hunyuan has none), unlike flux2dev's
-prompts_v6.py which needed real trimming to stay under FLUX.2's 512-token
-cap after the same two additions.
-
-NOT YET RUN.
-
-    # smoke test first
-    python -m archive.generators.generate_hunyuan_v3 --manifest manifests/2-pilot.json --limit 3 --out outputs/hunyuan/v3/smoke
-
-    # full run
-    python -m archive.generators.generate_hunyuan_v3 --manifest manifests/2-pilot.json --out outputs/hunyuan/v3
-
-Outputs PNG + sidecar JSON per image under outputs/<out>/ - same file-naming
-convention as generate_hunyuan.py, so annotate.py works on these outputs
-unmodified.
-"""
+"""Stage 1 generation - HunyuanImage-3.0, EXPERIMENTAL - camera_height forced to "far" (5-8m above the seabed) plus a subject-scale guard."""
 
 from __future__ import annotations
 
@@ -48,11 +15,6 @@ MODEL_REPO = "tencent/HunyuanImage-3.0"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print generate_image()'s real signature before trusting any assumption
-    about its parameters. This is the first thing that happens after load,
-    specifically so a smoke-test run doubles as API discovery rather than us
-    guessing parameter names and getting a wall of stack trace instead.
-    """
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -64,9 +26,6 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """seed is a confirmed, directly-supported kwarg - see generate_hunyuan.py's
-    module docstring (inspect.signature() captured on the live model during
-    the 3-pilot smoke test). No detection dance needed."""
     return model.generate_image(prompt=prompt, seed=seed, stream=True)
 
 
@@ -123,7 +82,7 @@ def main() -> None:
     if hasattr(model, "hf_device_map"):
         print(f"device_map: {model.hf_device_map}")
 
-    run_startup_introspection(model)  # kept for visibility - flags upstream API changes early
+    run_startup_introspection(model)
 
     durations: list[float] = []
     for row in rows:

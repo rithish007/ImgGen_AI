@@ -1,18 +1,4 @@
-"""Draw YOLO-format label boxes on top of their source images, for Checkpoint
-2.5 visual review. Pure PIL - no GPU, no model weights, runs anywhere.
-
-    python -m imggen.analysis.visualize_annotations --images-dir outputs/1-pilot/klein --labels-dir outputs/1-pilot/labels/sam3 --out-dir outputs/1-pilot/viz/sam3
-
-Also doubles as the Stage 4 pre-flight check: DR'd images always ship with
-their ORIGINAL clean-image label (see domain_randomize.py and the plan doc's
-Stage 3b section for why), but the DR'd PNGs are named "<stem>_dr.png" while
-the label is "<stem>.txt" - use --strip-suffix to bridge that:
-
-    python -m imggen.analysis.visualize_annotations --images-dir outputs/1-pilot/dr --labels-dir outputs/1-pilot/labels/sam3 --strip-suffix _dr --out-dir outputs/1-pilot/dr_labeled
-
-(outputs/1-pilot/labels/gdino and viz/gdino are historical - see annotate.py's
-module docstring for why Grounding DINO was dropped from the active workflow)
-"""
+"""Draw YOLO-format label boxes on top of their source images, for Checkpoint 2.5 visual review."""
 
 from __future__ import annotations
 
@@ -23,11 +9,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 from imggen.prompts.base import CLASSES
 
-# One distinct, high-contrast colour per class_id.
 CLASS_COLOURS = {
-    0: (255, 60, 60),    # starfish - red
-    1: (60, 220, 60),    # sea urchin - green
-    2: (60, 140, 255),   # scallop - blue
+    0: (255, 60, 60),
+    1: (60, 220, 60),
+    2: (60, 140, 255),
 }
 
 

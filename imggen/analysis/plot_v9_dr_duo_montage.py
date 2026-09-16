@@ -1,9 +1,4 @@
-"""Simple matplotlib montage: the same flux2dev v9 base image (#0007 - chosen
-because it has all three classes visible: starfish, sea_urchin, scallop) shown
-across its two DR variants, next to a real DUO test photo for reference.
-
-    python -m imggen.analysis.plot_v9_dr_duo_montage
-"""
+"""Simple matplotlib montage: the same flux2dev v9 base image (#0007 - chosen because it has all three classes visible: starfish, sea_urchin, scallop) shown across its two DR variants, next to a real DUO test photo for reference."""
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

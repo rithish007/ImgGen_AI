@@ -1,18 +1,4 @@
-"""Evaluate a trained v9 "combined" model against the real 778-image DUO test set.
-
-Runs prediction (saving detection images + labels), then a formal val() pass,
-then merges the per-class metrics into runs/eval_duo/comparison.json alongside
-every other model evaluated in this project.
-
-Consolidated from four copy-pasted scripts (v9_combined, _duo, _duo_scatter,
-_placeholder) that differed only in the variant name and train_images count.
-Those values now live in configs/experiments/v9_combined.json.
-
-    python -m imggen.eval.v9_combined_on_duo --variant base
-    python -m imggen.eval.v9_combined_on_duo --variant duo
-    python -m imggen.eval.v9_combined_on_duo --variant duo_scatter
-    python -m imggen.eval.v9_combined_on_duo --variant placeholder
-"""
+"""Evaluate a trained v9 "combined" model against the real 778-image DUO test set."""
 from __future__ import annotations
 
 import argparse

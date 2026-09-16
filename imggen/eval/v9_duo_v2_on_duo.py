@@ -1,15 +1,4 @@
-"""Detect + score the v9_flux2dev_duo_dr_v2 model (duo_calibrated DR, trained
-with the moderate regime - imgsz 768, optimizer="auto", mosaic=0.5, mixup and
-copy_paste still off - see imggen/train/v9_duo_v2.py) against the real DUO test
-set, and merge it into the same runs/eval_duo/comparison.json produced by
-imggen/eval/v9_on_duo.py and friends. Mirrors that script's pattern exactly.
-
-This is the intermediate step between v9_duo (no augmentation) and v9_duo_v3
-(full heavy-augmentation regime), so scoring it isolates how much of v3's
-change came from mosaic alone versus the rest of the heavier regime.
-
-    python -m imggen.eval.v9_duo_v2_on_duo
-"""
+"""Detect + score the v9_flux2dev_duo_dr_v2 model (duo_calibrated DR, trained with the moderate regime - imgsz 768, optimizer="auto", mosaic=0.5, mixup and copy_paste still off - see imggen/train/v9_duo_v2.py) against the real DUO test set, and merge it into the same runs/eval_duo/comparison.json produced by imggen/eval/v9_on_duo.py and friends."""
 from __future__ import annotations
 
 import json

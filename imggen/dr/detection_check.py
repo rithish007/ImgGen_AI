@@ -1,28 +1,4 @@
-"""Quantifies whether DR'd instances stay detectable, by matching the
-ORIGINAL clean-image ground-truth boxes (outputs/1-pilot/labels/sam3/)
-against SAM3's own re-detection on the DR'd images (outputs/1-pilot/labels/dr_sam3/).
-
-This is a diagnostic only - it does NOT determine which labels ship with the
-DR'd images. Those are always the original clean-image labels, unchanged
-(see domain_randomize.py and AI_Pipeline_Test_Plan.md's Stage 3b section for
-why re-detecting on the DR'd image and using THAT as ground truth would be
-wrong - it would record false negatives for real, correctly-labeled
-instances). What this answers instead: how much of the induced haze/noise/
-vignette pushed a real instance past what a strong foundation model can still
-find at all - i.e. is the DR set's difficulty calibrated sensibly, or has
-some of it gone past "hard but learnable" into "erased."
-
-For each ground-truth box, finds the best-IoU box among that image's DR
-re-detections (regardless of class) and buckets it:
-    matched        - same class, IoU >= threshold
-    misclassified  - different class, IoU >= threshold (the wrong-class
-                      concern from chat - a degraded region getting flagged
-                      under the WRONG class's independent SAM3 pass)
-    missed         - no DR detection reaches the IoU threshold at all
-
-    python -m imggen.dr.detection_check
-    python -m imggen.dr.detection_check --iou-threshold 0.3
-"""
+"""Quantifies whether DR'd instances stay detectable, by matching the ORIGINAL clean-image ground-truth boxes (outputs/1-pilot/labels/sam3/) against SAM3's own re-detection on the DR'd images (outputs/1-pilot/labels/dr_sam3/)."""
 
 from __future__ import annotations
 

@@ -1,10 +1,4 @@
-"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated-DR combined
-dataset (dataset/v9_flux2dev_duo_dr, from imggen/data/assemble_v9_duo_dataset.py)
-and score it against the real DUO test set. Same conventions as
-imggen/train/v9.py: mosaic/mixup off, fresh pretrained checkpoint, 100 epochs.
-
-    python -m imggen.train.v9_duo
-"""
+"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated-DR combined dataset (dataset/v9_flux2dev_duo_dr, from imggen/data/assemble_v9_duo_dataset.py) and score it against the real DUO test set."""
 from __future__ import annotations
 
 import json

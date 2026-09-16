@@ -1,40 +1,4 @@
-"""Train yolo26x.pt on dataset/v9_flux2dev_duo_dr (duo_calibrated DR,
-label-fix applied - DR labels now reuse the base image's label file
-verbatim instead of an independent, recall-degraded SAM3 re-annotation) with
-a heavier augmentation/optimizer regime than v9_duo_v2.py, informed by
-sim2real literature research and this project's own result history:
-
-- optimizer=MuSGD + lr0=0.0004: matches YOLO26's official X-scale training
-  recipe instead of relying on optimizer="auto" (docs.ultralytics.com/
-  guides/yolo26-training-recipe), whose lr0 for S/M/L/X is ~25x lower than
-  the classic universal 0.01 default.
-- imgsz=896, freeze=10: more resolution headroom for YOLO26's STAL
-  (small-target-aware label assignment) on real DUO's tiny GT boxes
-  (0.34-1% of frame area); freezing the first 10 backbone layers is
-  Ultralytics' own fine-tuning guidance for adapting a COCO checkpoint to a
-  narrow domain without catastrophic forgetting of generic low-level
-  features.
-- mosaic=0.95, mixup=0.35, copy_paste=0.35: this project's v9_duo_v2.py
-  already showed mosaic 0->0.5 improved DUO mAP50 4.90%->5.53%; pushed
-  further here per user directive.
-- scale=0.9: directly attacks the diagnosed object-scale mismatch
-  (reports/analysis/v9_yolo_sim2real_diagnosis.json finding 3) by forcing
-  the model to see much smaller synthetic renders during training.
-  multi_scale=True was tried alongside this but dropped: combined with
-  batch=-1 autobatch it probes VRAM at 2x imgsz (1792px here), which OOM'd
-  repeatedly and collapsed the batch size to 1 - scale=0.9 alone already
-  covers most of the intended size-diversity benefit without that failure
-  mode.
-- hsv_h=0.03/hsv_s=0.9/hsv_v=0.6: well above stock (0.015/0.7/0.4) - extra
-  photometric domain randomization layered on top of the physics-based
-  Jerlov DR transform, targeting the residual color-cast gap
-  (diagnosis finding 1).
-- fliplr=0.5, flipud=0.4: vertical flip enabled (unusual, default 0.0) -
-  reasonable for top-down benthic survey imagery where seafloor objects
-  have no fixed "up" orientation.
-
-    python -m imggen.train.v9_duo_v3
-"""
+"""Train yolo26x.pt on dataset/v9_flux2dev_duo_dr (duo_calibrated DR, label-fix applied - DR labels now reuse the base image's label file verbatim instead of an independent, recall-degraded SAM3 re-annotation) with a heavier augmentation/optimizer regime than v9_duo_v2.py, informed by sim2real literature research and this project's own result history: - optimizer=MuSGD + lr0=0.0004: matches YOLO26's official X-scale training recipe instead of relying on optimizer="auto" (docs.ultralytics.com/ guides/yolo26-training-recipe), whose lr0 for S/M/L/X is ~25x lower than the classic universal 0.01 default."""
 from __future__ import annotations
 
 import json

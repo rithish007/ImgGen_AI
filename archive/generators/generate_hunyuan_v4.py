@@ -1,37 +1,4 @@
-"""Stage 1 generation - HunyuanImage-3.0 v4 - reverts the equipment-hallucination
-"fix" back to prompts_v2.py's plain wording, which measured 4% (2/50) vs
-hunyuan_v2/v3's 33% (1/3, twice). See prompts_hunyuan_v4.py's module
-docstring for the full diagnosis.
-
-Duplicated from generate_hunyuan_v3.py rather than editing it in place (same
-"duplicate, don't edit files that produced real output" rule used throughout
-this project - v3 already ran a smoke test). Imports build_prompt() from
-prompts_hunyuan_v4.py. Does NOT force camera_height="far" - v3's camera-
-distance experiment is deliberately not part of this file, so the
-equipment-hallucination fix is the only variable under test. camera_height
-is drawn randomly per-row, matching the proven-good 5-pilot/hunyuan
-baseline this reverts to.
-
-Everything else (model loading/call path, VRAM/node requirements, separate
-conda env) is unchanged from generate_hunyuan.py - see that file's
-docstring for the full HunyuanImage-3.0 integration notes. No token cap to
-manage here (Hunyuan has none).
-
-NOT YET RUN. This is a hypothesis based on comparing two full 50-image runs
-against two 3-image smoke tests - needs its own run at meaningful scale
-(not another 3-image smoke test) before trusting the 4% rate actually
-holds for this exact prompt content.
-
-    # smoke test first
-    python -m archive.generators.generate_hunyuan_v4 --manifest manifests/2-pilot.json --limit 3 --out outputs/hunyuan/v4/smoke
-
-    # full run
-    python -m archive.generators.generate_hunyuan_v4 --manifest manifests/2-pilot.json --out outputs/hunyuan/v4
-
-Outputs PNG + sidecar JSON per image under outputs/<out>/ - same file-naming
-convention as generate_hunyuan.py, so annotate.py works on these outputs
-unmodified.
-"""
+"""Stage 1 generation - HunyuanImage-3.0 v4 - reverts the equipment-hallucination "fix" back to prompts_v2.py's plain wording, which measured 4% (2/50) vs hunyuan_v2/v3's 33% (1/3, twice)."""
 
 from __future__ import annotations
 
@@ -48,11 +15,6 @@ MODEL_REPO = "tencent/HunyuanImage-3.0"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print generate_image()'s real signature before trusting any assumption
-    about its parameters. This is the first thing that happens after load,
-    specifically so a smoke-test run doubles as API discovery rather than us
-    guessing parameter names and getting a wall of stack trace instead.
-    """
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -64,9 +26,6 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """seed is a confirmed, directly-supported kwarg - see generate_hunyuan.py's
-    module docstring (inspect.signature() captured on the live model during
-    the 3-pilot smoke test). No detection dance needed."""
     return model.generate_image(prompt=prompt, seed=seed, stream=True)
 
 
@@ -122,7 +81,7 @@ def main() -> None:
     if hasattr(model, "hf_device_map"):
         print(f"device_map: {model.hf_device_map}")
 
-    run_startup_introspection(model)  # kept for visibility - flags upstream API changes early
+    run_startup_introspection(model)
 
     durations: list[float] = []
     for row in rows:

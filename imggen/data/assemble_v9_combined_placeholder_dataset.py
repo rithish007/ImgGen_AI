@@ -1,39 +1,4 @@
-"""Build a YOLO-format dataset combining BOTH flux2dev v9 base sets (the
-original v8-prompt run and the starfish-camouflage-prompt run, see
-assemble_v9_combined_dataset.py) with their placeholder-profile DR'd copies.
-
-Four images per image_id group: v9 base, v9 base+placeholder DR, v9_starfish,
-v9_starfish+placeholder DR - up to 4000 images total. Grouped and split by
-image_id (not individual image) so no same-seed pair (base<->its own DR,
-v9<->v9_starfish) can straddle train/val - see assemble_v9_combined_dataset.py
-and assemble_v9_duo_dataset.py for the identical leakage reasoning applied
-here across all four variants at once.
-
-Each DR'd copy reuses its OWN source set's base label file verbatim (v9's DR
-reuses v9's label, v9_starfish's DR reuses v9_starfish's label) rather than a
-fresh SAM3 pass on the DR'd pixels - domain randomization is pixel-only, so
-object positions never move and the base boxes stay exactly correct. See
-assemble_v9_duo_dataset.py's docstring for the measured SAM3-recall-gap
-finding that motivated this (12.4-14.4% instance loss re-annotating hazy/
-recoloured pixels vs. reusing the clean-image labels).
-
-Output filenames are always derived from the shared image_id stem plus an
-explicit role suffix (_base / _base_dr / _starfish / _starfish_dr) - never
-from the DR file's own already-suffixed name, to avoid ambiguous double
-suffixes.
-
-val-count is GROUPS (image_ids), not images - 100 groups matches every other
-dataset's 10% ratio here (100/1000 groups -> 400/4000 images, still 10%,
-since all four variants scale together).
-
-Run after both sets have placeholder DR'd copies + SAM3 labels:
-    outputs/flux2dev/v9/dr_runs/v1/dr/                (v9 base placeholder DR)
-    outputs/flux2dev/v9_starfish/dr_runs/v1/dr/        (v9_starfish placeholder DR)
-    outputs/flux2dev/v9/labels/sam3/                   (v9 base labels)
-    outputs/flux2dev/v9_starfish/labels/sam3/          (v9_starfish labels)
-
-    python -m imggen.data.assemble_v9_combined_placeholder_dataset
-"""
+"""Build a YOLO-format dataset combining BOTH flux2dev v9 base sets (the original v8-prompt run and the starfish-camouflage-prompt run, see assemble_v9_combined_dataset.py) with their placeholder-profile DR'd copies."""
 from __future__ import annotations
 
 import argparse
@@ -42,15 +7,12 @@ from pathlib import Path
 
 from PIL import Image
 
-RESOLUTION = 1024  # native - see assemble_v9_dataset.py's docstring for why this isn't a fixed downscale
+RESOLUTION = 1024
 CLASS_NAMES = {0: "starfish", 1: "sea_urchin", 2: "scallop"}
 DR_SUFFIX = "_dr"
 
 
 def collect(images_dir: Path, labels_dir: Path, dr_images_dir: Path) -> dict:
-    """Per image_id: base (image, label) always present; dr (image, label)
-    present only if the DR'd copy exists - dr's label is the SAME base
-    label_path, reused verbatim (see module docstring)."""
     entries = {}
     for label_path in sorted(labels_dir.glob("*.txt")):
         stem = label_path.stem

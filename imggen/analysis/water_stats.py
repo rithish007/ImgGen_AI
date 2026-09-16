@@ -1,53 +1,4 @@
-"""Tier 2 / statistical-similarity route for the open Akkaynak-Treibitz
-reverse-engineering task (see AI_Pipeline_Test_Plan.md and the DA-V2 vs
-Depth Pro vs YOLO26 comparison work this follows on from) - depth-free
-descriptive water-appearance statistics, computed directly from pixels.
-
-This does NOT fit the Akkaynak-Treibitz beta/B_inf equation (that needs a
-real per-pixel METRIC range map, which neither DUO nor a generated image
-has - see the CIRS/NTNU discussion for the route that does need it). Instead
-it computes cheaper, depth-free descriptors that summarise "what underwater
-water conditions look like" as plain pixel statistics:
-
-    - mean_rgb            per-channel mean intensity, [0,1]
-    - ratio_rg, ratio_bg  mean_R/mean_G, mean_B/mean_G - color-cast
-                           direction/magnitude as a single number per image.
-                           Same ratio SHAPE as jerlov.py's beta_bg/beta_br,
-                           but NOT the same physical quantity - these are raw
-                           pixel-statistic ratios of an already-attenuated
-                           image, not attenuation-COEFFICIENT ratios. Don't
-                           conflate the two when reading results.
-    - dark_channel_mean   mean of the dark-channel map (min over R,G,B in a
-                           local patch, He/Sun/Tang CVPR 2009) - a standard
-                           haze-magnitude proxy, higher = hazier. Same paper
-                           family depth_utils.py's guided filter already
-                           comes from (He, Sun & Tang, ECCV 2010).
-    - luminance_std        std of grayscale luminance - simple global-contrast
-                           backup to dark_channel_mean.
-    - veiling_light_rgb   airlight/veiling-light colour estimate: among the
-                           haziest 0.1% of pixels (highest dark-channel
-                           value), average the brightest few of those in the
-                           original image - He/Sun/Tang's atmospheric-light
-                           estimation step. Directly comparable in spirit to
-                           domain_randomize.py's resolved B_inf_rgb.
-
-Per-image stats are aggregated into distributions (mean/median/std/p10/p90)
-across a whole directory - those aggregate numbers are the actual "values"
-this script exists to produce, for later comparison against the same stats
-run on generated or DR'd output. This script only computes and reports the
-values for one directory at a time; it does not compare two directories.
-
-Dark-channel patch size is expressed as a fraction of the image's shorter
-side (not a fixed pixel count) so results stay comparable across datasets
-at different resolutions - DUO's exports are 640x640, this pipeline's raw
-generations are 1024x1024.
-
-Pure numpy/scipy/PIL - no model weights, no GPU, matches domain_randomize.py
-and depth_utils.py's existing "deterministic pixel-only" tooling.
-
-    python -m imggen.analysis.water_stats --images-dir dataset/DUO_Dataset/train/images --out reports/water_stats/duo_train_water_stats.json
-    python -m imggen.analysis.water_stats --images-dir outputs/5-pilot/flux2dev_v4 --out reports/water_stats/5pilot_flux2dev_v4_water_stats.json
-"""
+"""Tier 2 / statistical-similarity route for the open Akkaynak-Treibitz reverse-engineering task (see AI_Pipeline_Test_Plan.md and the DA-V2 vs Depth Pro vs YOLO26 comparison work this follows on from) - depth-free descriptive water-appearance statistics, computed directly from pixels."""
 
 from __future__ import annotations
 
@@ -59,27 +10,19 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import minimum_filter
 
-DARK_CHANNEL_PATCH_FRAC = 15 / 640  # He/Sun/Tang's 15px default at DUO's 640px, expressed as a fraction so it scales to other resolutions
-AIRLIGHT_TOP_DARK_FRAC = 0.001  # top 0.1% haziest pixels by dark-channel value, per He/Sun/Tang
-AIRLIGHT_TOP_N = 25  # of those, average the N brightest - a single brightest pixel is noisy (specular highlights, sensor artifacts)
+DARK_CHANNEL_PATCH_FRAC = 15 / 640
+AIRLIGHT_TOP_DARK_FRAC = 0.001
+AIRLIGHT_TOP_N = 25
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 
 def dark_channel(img: np.ndarray, patch: int) -> np.ndarray:
-    """(H,W,3) float [0,1] -> (H,W) dark-channel map (He, Sun & Tang, CVPR
-    2009): min over R,G,B per pixel, then a local minimum over a patch x
-    patch window.
-    """
     channel_min = img.min(axis=-1)
     return minimum_filter(channel_min, size=patch, mode="nearest")
 
 
 def estimate_veiling_light(img: np.ndarray, dc: np.ndarray) -> np.ndarray:
-    """Airlight/veiling-light colour: among the AIRLIGHT_TOP_DARK_FRAC
-    haziest pixels (highest dark-channel value), average the AIRLIGHT_TOP_N
-    most intense of those in the original image.
-    """
     flat_dc = dc.reshape(-1)
     n_top = max(1, int(flat_dc.size * AIRLIGHT_TOP_DARK_FRAC))
     haziest_idx = np.argpartition(flat_dc, -n_top)[-n_top:]
@@ -96,7 +39,7 @@ def image_stats(path: Path) -> dict:
     img = np.asarray(Image.open(path).convert("RGB")).astype(np.float64) / 255.0
     h, w = img.shape[:2]
 
-    patch = max(3, int(round(DARK_CHANNEL_PATCH_FRAC * min(h, w))) | 1)  # odd, >=3
+    patch = max(3, int(round(DARK_CHANNEL_PATCH_FRAC * min(h, w))) | 1)
     dc = dark_channel(img, patch)
     veiling_light = estimate_veiling_light(img, dc)
 
@@ -126,7 +69,7 @@ def summarize(values: list[float]) -> dict:
 
 
 def summarize_rgb(values: list[list[float]]) -> dict:
-    arr = np.asarray(values, dtype=np.float64)  # (N, 3)
+    arr = np.asarray(values, dtype=np.float64)
     return {
         "mean": arr.mean(axis=0).tolist(),
         "median": np.median(arr, axis=0).tolist(),

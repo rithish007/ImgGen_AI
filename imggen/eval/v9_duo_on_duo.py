@@ -1,10 +1,4 @@
-"""Detect + score the v9_flux2dev_duo_dr model (900 base + 900 duo_calibrated
-DR images, 1800 train / 200 val) against the real DUO test set. Mirrors
-imggen/eval/v9_on_duo.py's pattern for the v9_flux2dev (base-only) model, so the
-two are directly comparable.
-
-    python -m imggen.eval.v9_duo_on_duo
-"""
+"""Detect + score the v9_flux2dev_duo_dr model (900 base + 900 duo_calibrated DR images, 1800 train / 200 val) against the real DUO test set."""
 from __future__ import annotations
 
 import json

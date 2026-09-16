@@ -1,31 +1,4 @@
-"""Stage 1 generation - FLUX.2 family only (klein, flux2dev).
-
-Split out of generate.py rather than editing it in place, so the already-
-verified klein/flux2dev(fp8) code path used for the 2-pilot run stays
-untouched and reproducible - same reasoning as generate_3pilot.py's own
-"duplicated, not edited" choice. generate.py itself is left exactly as-is:
-it still covers sd35/qwen_image/qwen_image_lightning, which were only ever
-tested for literature-review comparison purposes, not for further use here.
-
-Both models here share one real property that justifies a dedicated script:
-neither Flux2KleinPipeline nor Flux2Pipeline has a text-level negative_prompt
-parameter (confirmed via inspect.signature on both pipelines' __call__ - see
-each entry below). Exclusions are always folded into the positive prompt via
-prompts.py's POSITIVE_ONLY_GUARDS, never passed as negative_prompt. This is
-the one hardcoded assumption in this file - if a future diffusers upgrade
-changes either pipeline's signature, MODELS[...]["supports_negative"] is
-still there to flip, nothing else needs to change.
-
-    # no GPU needed - check prompts before you pay for a pod
-    python -m archive.generators.generate_flux --model klein --manifest manifests/smoke.json --dry-run
-
-    # on the pod
-    python -m archive.generators.generate_flux --model klein    --manifest manifests/2-pilot.json
-    python -m archive.generators.generate_flux --model flux2dev --manifest manifests/2-pilot.json
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - FLUX.2 family only (klein, flux2dev)."""
 
 from __future__ import annotations
 
@@ -44,8 +17,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # Flux2KleinPipeline takes negative_prompt_embeds but no text-level
-        # negative_prompt. Exclusions are folded into the positive prompt.
         "supports_negative": False,
         "approx_vram_gb": 29,
         "quantize_components": [],
@@ -57,18 +28,7 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # Same situation as klein: no text-level negative_prompt on this
-        # pipeline either (checked via inspect.signature(Flux2Pipeline.__call__)).
         "supports_negative": False,
-        # fp8 transformer (~32GB) + fp8 text encoder (~24GB) never coexist on
-        # GPU at once - load_pipeline's offload fallback keeps peak usage near
-        # whichever single component is larger, not their sum. BUT: RunPod
-        # containers can cap system RAM well below what `free -h` reports (see
-        # /sys/fs/cgroup/memory.max - one pod measured ~58GB against a 503GB
-        # host). enable_model_cpu_offload() needs BOTH components resident in
-        # CPU RAM at once (each is swapped to GPU in turn, not deleted), which
-        # can exceed that cap even though neither alone would. Verify
-        # memory.max before running this on a new pod.
         "approx_vram_gb": 32,
         "quantize_components": ["transformer", "text_encoder"],
         "lora": None,
@@ -77,19 +37,6 @@ MODELS = {
 
 
 def _build_quantization_config(components: list[str]):
-    """fp8 weight-only quantization for the given pipeline component names.
-
-    Requires torchao and a >=8.9 compute capability GPU (RTX 4090/6000 Ada,
-    Hopper, Blackwell) for native fp8 tensor cores; falls back to (slower)
-    emulated fp8 on older cards.
-
-    Defensive attribute sets: even the pinned diffusers==0.39.0's
-    TorchAoConfig doesn't set every attribute transformers==5.14.1's torchao
-    integration reads unconditionally for this dual-component (diffusion
-    transformer + text-encoder) quantization path - see generate.py's fuller
-    history of this if it recurs. False = don't additionally quantize/untie
-    embedding layers, the conservative default.
-    """
     from diffusers import PipelineQuantizationConfig, TorchAoConfig
     from torchao.quantization import Float8WeightOnlyConfig
 
@@ -105,12 +52,6 @@ def _build_quantization_config(components: list[str]):
 
 
 def load_pipeline(model_key: str, offload_mode: str):
-    """Load the pipeline, falling back to CPU offload if it will not fit.
-
-    Weights land in CPU RAM first, so the OOM fallback costs a device transfer
-    rather than a re-download. Note this fallback is not a safe last resort for
-    every model - see flux2dev's RAM-cap comment above.
-    """
     import torch
     import diffusers
 

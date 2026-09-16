@@ -1,15 +1,4 @@
-"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated-DR combined
-dataset (dataset/v9_flux2dev_duo_dr, built by
-imggen/data/assemble_v9_duo_dataset.py) - the same dataset that produced the
-project's best result to date (the v9_flux2dev_duo_dr run, DUO mAP50 4.90%,
-trained by imggen/train/v9_duo.py) - but with a heavier training regime:
-larger imgsz, more epochs with early-stopping patience, and mosaic re-enabled
-(mixup/copy_paste still off) per finding 4 in
-reports/analysis/v9_yolo_sim2real_diagnosis.json (mosaic=0/mixup=0 in every
-prior run was flagged as likely encouraging memorization over generalization).
-
-    python -m imggen.train.v9_duo_v2
-"""
+"""Train yolo26x.pt on the flux2dev v9 base + duo_calibrated-DR combined dataset (dataset/v9_flux2dev_duo_dr, built by imggen/data/assemble_v9_duo_dataset.py) - the same dataset that produced the project's best result to date (the v9_flux2dev_duo_dr run, DUO mAP50 4.90%, trained by imggen/train/v9_duo.py) - but with a heavier training regime: larger imgsz, more epochs with early-stopping patience, and mosaic re-enabled (mixup/copy_paste still off) per finding 4 in reports/analysis/v9_yolo_sim2real_diagnosis.json (mosaic=0/mixup=0 in every prior run was flagged as likely encouraging memorization over generalization)."""
 from __future__ import annotations
 
 import json

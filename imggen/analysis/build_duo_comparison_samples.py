@@ -1,14 +1,4 @@
-"""Pick a handful of DUO test images (starfish-heavy, scallop-heavy, and
-sea_urchin-heavy) and assemble GT-vs-3-models comparison images: the
-ground-truth boxes drawn on the original photo, side by side with each
-pilot model's already-rendered detection image (from
-runs/predict_duo/<variant>_detections/).
-
-Run on the pod after imggen/eval/pilot_on_duo.py has produced the
-runs/predict_duo/*/  detection folders.
-
-    python -m imggen.analysis.build_duo_comparison_samples
-"""
+"""Pick a handful of DUO test images (starfish-heavy, scallop-heavy, and sea_urchin-heavy) and assemble GT-vs-3-models comparison images: the ground-truth boxes drawn on the original photo, side by side with each pilot model's already-rendered detection image (from runs/predict_duo/<variant>_detections/)."""
 from __future__ import annotations
 
 import json
@@ -54,8 +44,6 @@ def draw_gt(image_path: Path, boxes: list[tuple[int, float, float, float, float]
 
 def main() -> None:
     if MANIFEST_PATH.exists():
-        # reuse the same previously-selected images so new models slot into
-        # an apples-to-apples comparison instead of a freshly randomized set
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         print(f"reusing {len(manifest)} previously-selected samples from {MANIFEST_PATH}")
     else:

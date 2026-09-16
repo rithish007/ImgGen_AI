@@ -1,96 +1,4 @@
-"""
-prompts_hunyuan_v2.py
-======================
-Hunyuan-only prompt engine, forked from prompts_v3.py to fix the two defect
-threads found in the 5-pilot Hunyuan audit, using Hunyuan's own prompting
-headroom instead of FLUX.2's constraints.
-
-WHY A SEPARATE FILE (not folded into prompts_v3.py):
-HunyuanImage-3.0's own docs/repo have no stated hard token/word cap - training
-captions ranged 30-1000 words, unlike FLUX.2's confirmed hard 512-token
-truncation (see prompts_v2.py's module docstring). prompts_v2.py/prompts_v3.py
-are deliberately compressed and reordered (subject+guards first) specifically
-to survive that FLUX.2-only truncation risk. Hunyuan has no such constraint,
-so this file is free to spell things out explicitly instead of compressing -
-and the two defects below are exactly the kind of thing that benefits from
-being spelled out rather than implied. Also follows Hunyuan's own recommended
-prompt structure (main subject/scene -> image quality/style -> composition/
-perspective -> lighting/atmosphere -> technical parameters) instead of BFL's
-FLUX.2-specific ordering, since front-loading for truncation safety is not a
-concern here.
-
-THE TWO DEFECT THREADS (found auditing 5-pilot/hunyuan, prompts_v2, 50 images):
-
-1. SURVEY EQUIPMENT HALLUCINATING INTO FRAME (images 16, 19 - a robotic
-   camera rig/arm visible in shot). Root cause: prompts_v2's opening line
-   ("Photorealistic underwater robot-survey photograph") and REALISM_GUARD
-   ("plain documentary robot photo") both describe the image as a photo OF a
-   robot doing a survey, never disambiguating that the camera IS the robot
-   (first-person POV) rather than a photo showing a robot from the outside.
-   REALISM_GUARD's exclusion list (divers/boats/CG) never mentioned the
-   equipment itself as something to exclude.
-   Fix: explicit first-person-POV framing device in the opening line ("as
-   though the viewer is looking directly through the camera's own lens") and
-   an expanded REALISM_GUARD that explicitly excludes robotic arms,
-   thrusters, camera housing, cables, and "any other part of the survey
-   vehicle."
-
-2. "PRODUCT PHOTOGRAPHY" LOOK - camera reads as too close, and organisms
-   read as sitting ON TOP of the substrate with a slight gap rather than
-   genuinely resting on it (reported directly: "Most starfish and scallop are
-   hovering a little bit from the ground"). Re-verified 2026-08-10 by
-   sampling 5-pilot/hunyuan images 16/19/25/40: all show organisms lined up
-   frontally at close range with no visible ground contact/shadow - a
-   catalogue-photo composition, not a candid survey frame. Two contributing
-   causes, both addressed here:
-     - No guard anywhere said organisms must show physical ground contact -
-       "resting flat against rock" (starfish arrangement text) describes
-       position but not contact/shadow.
-     - FRAMING["close-up"]'s text ("close framing, camera near the seabed")
-       has no anti-macro/anti-product-shot qualifier, unlike wide/mid.
-   Fix: two new guards - PRODUCT_PHOTO_GUARD (explicitly rules out specimen-
-   display/catalogue framing) and GROUND_CONTACT_GUARD (explicit contact +
-   shadow requirement) - plus a reworded close-up FRAMING entry that keeps
-   the close distance (still needed for the manifest's close-up rows) but
-   qualifies it as survey-distance, not a macro product shot.
-
-   NOTE - NOT fixed here, out of scope for this file: the manifest itself
-   assigns close-up+dense framing to 21/50 rows (42%) in a rigid block
-   pattern (rows 1-7, 22-28, 43-49 of every stage that reuses
-   manifests/2-pilot.json), which structurally biases the whole dataset -
-   all three models, not just Hunyuan - toward the tight/dense look on
-   nearly half of all images. That's a manifest-level fix, not a prompt-text
-   one; flagged in the 5-pilot cross-model audit, not addressed by this file.
-
-UPDATE (same session, before this file was ever run): also picked up
-prompts_v4.py's two fixes, keeping this file aligned with flux2dev's CLASSES/
-pool content rather than freezing it at the v3 snapshot: starfish
-recoloured orange/reddish-brown + camouflage language dropped from
-arrangement text (flux2dev evidence: mean detection ratio 0.54x on
-multi-class starfish rows vs 0.91x single-class - not yet measured on
-Hunyuan specifically, but no reason to leave Hunyuan on wording already
-shown to matter elsewhere), and SCENE_TEMPLATES/ALGAE_VARIATIONS/
-LIGHTING_CONDITIONS expanded with genuinely different content instead of
-near-synonymous paraphrases (5-pilot audit finding, applies to all three
-models equally). See prompts_v4.py's module docstring for the full
-evidence behind both.
-
-EVERYTHING ELSE IS UNCHANGED FROM prompts_v3.py: SUBSTRATE_VARIATIONS/
-ROCK_FORMATIONS/CAMERA_FOV/CAMERA_MOTION/IMAGING_CONDITIONS/COMPOSITIONS/
-DEPTH_DISTRIBUTIONS, SCENE_DENSITIES, DETECTION_DIFFICULTY, CAMERA_HEIGHTS,
-COUNT_RANGES, the count=1 arrangements_solo/group split, the urchin
-grey-blob fix (carried forward though Hunyuan's own anatomy has been clean
-throughout - kept identical to flux2dev/klein for a fair cross-model
-comparison, not because Hunyuan needed it), the single-class+dense
-rock-formation gate, the wide+sparse FRAMING_COUNT_ANCHOR, and the
-BIVALVE_GUARD scallop-only gate.
-
-NOT YET DONE: generate_hunyuan_v2.py exists and dry-runs cleanly, but no
-smoke test has actually been run on Stanage yet. Do that (and re-verify
-word counts if curious, though there's no hard cap to check against) before
-treating this as validated - same rule as every other prompt file in this
-project, don't trust a new prompt file just because it imports cleanly.
-"""
+"""Hunyuan-only prompt engine, forked from prompts_v3.py to fix the two defect threads found in the 5-pilot Hunyuan audit, using Hunyuan's own prompting headroom instead of FLUX.2's constraints."""
 
 from __future__ import annotations
 
@@ -99,25 +7,12 @@ from dataclasses import dataclass, asdict
 from typing import Optional
 
 
-# ============================================================================
-# CLASS DEFINITIONS (unchanged from prompts_v3.py, including the urchin fix)
-# ============================================================================
-
 CLASSES: dict[int, dict[str, object]] = {
 
     0: {
         "duo_label": "starfish",
         "short": "starfish",
 
-        # Reverted to the original brown-grey/muted palette - the orange
-        # recolour (meant to fix flux2dev's multi-class starfish undercount,
-        # see prompts_v4.py's module docstring) read as too vibrant/artificial
-        # per direct feedback on the flux2dev smoke test. Same caveat applies
-        # here: reverting the colour brings back the low-contrast condition
-        # the fix targeted. One variant changed to muted blue-grey (kept in
-        # sync with prompts_v5.py) - real ground-truth feedback that DUO
-        # includes blue starfish, not a contrast hack; kept muted rather
-        # than vivid blue to match COLOR_PALETTE_GUARD below.
         "morphology": [
             "a small starfish, five arms, mottled brown-grey, rough texture",
             "a small five-armed starfish, muted brown-grey, irregular darker patches",
@@ -126,8 +21,6 @@ CLASSES: dict[int, dict[str, object]] = {
             "a small starfish, five arms, muted blue-grey, rough texture",
         ],
 
-        # Dropped "blending into the substrate" / "naturally camouflaged" -
-        # explicit low-contrast instructions implicated in the fix above.
         "arrangements_solo": [
             "resting flat against rock and algae",
             "resting beside a low rock ledge, partly obscured",
@@ -187,18 +80,6 @@ CLASSES: dict[int, dict[str, object]] = {
 }
 
 
-# ============================================================================
-# SCENE / ENVIRONMENT (unchanged from prompts_v3.py)
-# ============================================================================
-
-# Expanded from the original 5, but kelp/reef entries were removed and the
-# silty entry reworded per direct ground-truth feedback on the real DUO
-# dataset: "primary scene environment ... is sandy, small rocks here and
-# there, boulders - all in sandy, beige or brownish tones ... no kelp
-# fields, corals in DUO datasets." "Occasional shell fragments" was also
-# independently found causing false-positive scallop detections (flux2dev_v4
-# full run row 46: 0 scallops requested, 16 detected) - dropped for both
-# reasons. 7 templates - all sandy/rocky/boulder terrain, matching DUO.
 SCENE_TEMPLATES = [
     "temperate coastal seabed - sand, coarse sediment, gravel, irregular rocks, shallow ledges",
     "open sandy plain - fine sand, only occasional scattered pebbles, very little exposed rock",
@@ -209,9 +90,6 @@ SCENE_TEMPLATES = [
     "mixed rubble seabed - broken rock fragments, gravel and sand in irregular patches",
 ]
 
-# Dropped "pink coralline algae" (reads as coral - not in DUO) and "loose
-# kelp debris" (kelp - not in DUO), same ground-truth feedback as above. The
-# remaining 4 stay within DUO's actual beige/brown/muted-green palette.
 ALGAE_VARIATIONS = [
     "sparse turf algae on rocks",
     "dense green-brown algae covering exposed rock surfaces",
@@ -237,10 +115,6 @@ ROCK_FORMATIONS = [
 ]
 
 
-# ============================================================================
-# ECOLOGICAL / COMPOSITIONAL CONDITIONS (unchanged from prompts_v3.py)
-# ============================================================================
-
 SCENE_DENSITIES = {
     "sparse": "relatively open seabed, substantial exposed sediment, limited clutter",
     "moderate": "moderately cluttered seabed, natural rocks/algae/sediment across foreground and mid-ground",
@@ -255,13 +129,6 @@ DETECTION_DIFFICULTY = {
 
 SCENE_WATER_PHRASE = "clear water, true-to-life colour"
 
-# Expanded from the original 4, but "golden low-angle light" was dropped -
-# warm/dramatic lighting pushes toward the "too vibrant" look corrected
-# below (ground-truth DUO feedback: "current images ... are a bit too
-# vibrant and colourful"). 6 remaining - diffuse/soft/overcast/dappled
-# brightness variation without a colour-temperature swing. Only varies
-# light quality/angle, not visibility - Stage 3 still owns turbidity,
-# nothing here contradicts SCENE_WATER_PHRASE.
 LIGHTING_CONDITIONS = [
     "diffuse natural sunlight, soft uneven brightness, subtle shadows",
     "soft filtered daylight, gentle brightness variation, low-contrast shadows",
@@ -311,23 +178,9 @@ DEPTH_DISTRIBUTIONS = [
 ]
 
 
-# ============================================================================
-# GUARDS
-# ============================================================================
-#
-# COMPOSITION_GUARD/SPECIES_GUARD/OPTICAL_GUARD/BIVALVE_GUARD/
-# FRAMING_COUNT_ANCHOR unchanged from prompts_v3.py. REALISM_GUARD expanded
-# (thread 1). PRODUCT_PHOTO_GUARD and GROUND_CONTACT_GUARD are new (thread
-# 2). No length budget to respect here (see module docstring), so no need to
-# keep these as tight as prompts_v2/v3's versions.
-
 COMPOSITION_GUARD = "natural asymmetric spacing, no decorative symmetry or cloned objects"
 SPECIES_GUARD = "only these organisms and seabed material in frame, no other animals"
 
-# Thread 1 fix: explicitly excludes the survey vehicle/camera rig itself,
-# not just divers/boats/CG. prompts_v2/v3's version never named the
-# equipment as something to exclude, which is the gap that let a robotic
-# camera rig hallucinate into frame (5-pilot/hunyuan images 16, 19).
 REALISM_GUARD = (
     "plain documentary survey photograph, not a posed wildlife photograph or "
     "product photograph; no divers, boats, or CG rendering; no robotic arms, "
@@ -335,21 +188,10 @@ REALISM_GUARD = (
     "vehicle visible anywhere in frame"
 )
 
-# Thread 2 fix, part A: rules out the specimen-display/catalogue-photo
-# framing directly (the "product photography" complaint).
 PRODUCT_PHOTO_GUARD = "candid in-situ ecological documentation, not a specimen display or catalogue photograph"
 
-# Thread 2 fix, part B: explicit ground-contact requirement. Nothing in
-# prompts_v2/v3 ever said organisms must visibly touch the substrate -
-# arrangement text describes position ("resting flat against rock") but not
-# contact/shadow, which is exactly the gap behind "hovering a little bit
-# from the ground."
 GROUND_CONTACT_GUARD = "every organism rests directly on the substrate with genuine physical contact and a soft contact shadow, never elevated or hovering above the seabed"
 
-# New, direct fix for ground-truth DUO feedback: "current images ... are a
-# bit too vibrant and colourful" (real dataset is sandy/beige/brownish
-# tones throughout). Nothing before this constrained overall colour
-# saturation, only individual-class colour words. Applied unconditionally.
 COLOR_PALETTE_GUARD = "muted natural colour palette, beige, tan and brown tones, no vivid or saturated colour grading"
 
 OPTICAL_GUARD = "full frame, no fisheye or vignette"
@@ -359,25 +201,12 @@ BIVALVE_GUARD = "bivalve shells fully closed and undisturbed"
 FRAMING_COUNT_ANCHOR = "count is a strict total for the frame, not per unit area"
 
 
-# ============================================================================
-# FRAMING
-# ============================================================================
-#
-# mid/wide unchanged. close-up reworded (thread 2 fix, part C): keeps the
-# close distance the manifest actually asks for on close-up rows, but adds
-# an explicit anti-macro/anti-product-shot qualifier that prompts_v2/v3's
-# version lacked.
-
 FRAMING = {
     "close-up": "close survey framing at natural working distance, camera near the seabed but keeping full ecological context, not a tight macro product shot; objects at different distances",
     "mid": "mid-distance framing, foreground and mid-ground objects visible",
     "wide": "wide framing, larger section of seabed, objects at different depths",
 }
 
-
-# ============================================================================
-# OBJECT COUNT RANGES (unchanged from prompts_v3.py)
-# ============================================================================
 
 COUNT_RANGES = {
     0: {"sparse": (1, 2), "moderate": (1, 3), "dense": (2, 4)},
@@ -386,13 +215,8 @@ COUNT_RANGES = {
 }
 
 
-# ============================================================================
-# DATA STRUCTURES
-# ============================================================================
-
 @dataclass
 class PromptMetadata:
-    """Metadata describing the synthetic scene requested by the prompt."""
 
     seed: int
     density: str
@@ -411,10 +235,6 @@ class PromptMetadata:
     imaging_index: int
 
 
-# ============================================================================
-# RANDOM HELPERS (unchanged from prompts_v3.py)
-# ============================================================================
-
 def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
     index = rng.randrange(len(values))
     return values[index], index
@@ -426,16 +246,11 @@ def _random_count(rng: random.Random, class_id: int, density: str) -> int:
 
 
 def _drop_leading_article(text: str) -> str:
-    """Strip only a genuine leading 'a ' or 'an ', not every occurrence."""
     for article in ("an ", "a "):
         if text.startswith(article):
             return text[len(article):]
     return text
 
-
-# ============================================================================
-# CLASS PHRASE GENERATION (unchanged from prompts_v3.py)
-# ============================================================================
 
 def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     entry = CLASSES[class_id]
@@ -454,10 +269,6 @@ def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     )
 
 
-# ============================================================================
-# SCENE OBJECT GENERATION (unchanged from prompts_v3.py)
-# ============================================================================
-
 def generate_class_counts(
     rng: random.Random,
     density: str,
@@ -470,10 +281,6 @@ def generate_class_counts(
     return {cid: _random_count(rng, cid, density) for cid in sorted(selected)}
 
 
-# ============================================================================
-# PROMPT BUILDER
-# ============================================================================
-
 def build_prompt(
     counts: dict[int, int],
     *,
@@ -483,22 +290,6 @@ def build_prompt(
     camera_height: Optional[str] = None,
     framing: Optional[str] = None,
 ) -> tuple[str, PromptMetadata]:
-    """
-    Construct a Hunyuan-specific underwater survey image-generation prompt.
-
-    Same rng draw sequence/order as prompts_v2.py/prompts_v3.py, so a given
-    seed selects the same environment/subject content across all three
-    prompt engines - only the surrounding scaffolding text differs (see
-    module docstring for what changed and why: first-person POV + equipment
-    exclusion, product-photography guard, ground-contact guard, reworded
-    close-up framing).
-
-    Assembly order follows Hunyuan's own recommended prompt structure (main
-    subject/scene -> image quality/style -> composition/perspective ->
-    lighting/atmosphere -> technical parameters) rather than prompts_v2/v3's
-    FLUX.2-truncation-safe ordering, since there's no hard token cap to
-    protect against here.
-    """
 
     rng = random.Random(seed)
 
@@ -522,11 +313,6 @@ def build_prompt(
     if framing not in FRAMING:
         raise ValueError(f"Invalid framing {framing!r}. Expected one of {list(FRAMING)}")
 
-    # ------------------------------------------------------------------
-    # Select scene components (same rng sequence order as prompts_v2/v3, so
-    # a given seed draws the same environment even though the assembled
-    # sentences below differ)
-    # ------------------------------------------------------------------
 
     scene_template, scene_idx = _choose(rng, SCENE_TEMPLATES)
     algae, algae_idx = _choose(rng, ALGAE_VARIATIONS)
@@ -541,9 +327,6 @@ def build_prompt(
 
     include_rock_formation = not (len(counts) == 1 and density == "dense")
 
-    # ------------------------------------------------------------------
-    # Build subject descriptions (unchanged from prompts_v3.py)
-    # ------------------------------------------------------------------
 
     subject_phrases = []
     for class_id in sorted(counts):
@@ -561,11 +344,6 @@ def build_prompt(
     else:
         subjects = ", ".join(subject_phrases[:-1]) + ", and " + subject_phrases[-1]
 
-    # ------------------------------------------------------------------
-    # Compose the final prompt - Hunyuan's own recommended structure:
-    # main subject/scene -> image quality/style -> composition/perspective
-    # -> lighting/atmosphere -> technical parameters.
-    # ------------------------------------------------------------------
 
     opening = (
         "Photorealistic underwater seabed photograph, captured in first-person "
@@ -629,10 +407,6 @@ def build_prompt(
 
     return prompt, metadata
 
-
-# ============================================================================
-# CLASS NAME HELPERS
-# ============================================================================
 
 def class_names() -> dict[int, str]:
     return {cid: entry["short"] for cid, entry in CLASSES.items()}

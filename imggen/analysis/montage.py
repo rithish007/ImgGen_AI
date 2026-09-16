@@ -1,14 +1,4 @@
-"""Contact-sheet montage of sample images from a generation output directory.
-No GPU, no model weights - Pillow is the only dependency.
-
-Samples evenly across the sorted file list rather than taking the first N, so
-a manifest ordered by density/framing block (dense/close-up first, then
-moderate/mid, then sparse/wide - see manifests/2-pilot.json) doesn't produce a
-montage skewed toward one scene-scale condition.
-
-    python -m imggen.analysis.montage outputs/flux2dev/v8
-    python -m imggen.analysis.montage outputs/flux2dev/v8 --n 20 --cols 5 --out outputs/reports/montage_flux2dev_v8.png
-"""
+"""Contact-sheet montage of sample images from a generation output directory."""
 
 from __future__ import annotations
 
@@ -73,8 +63,6 @@ def main() -> None:
         raise SystemExit(f"no PNGs found in {args.input_dir}")
 
     sampled = sample_evenly(paths, args.n)
-    # e.g. outputs/flux2dev/v8 -> "flux2dev_v8", not just "v8" (which would
-    # collide across models sharing a version number)
     tag = "_".join(args.input_dir.parts[-2:]) if len(args.input_dir.parts) >= 2 else args.input_dir.name
     out_path = args.out or Path("outputs/reports") / f"montage_{tag}.png"
     build_montage(sampled, args.cols, out_path)

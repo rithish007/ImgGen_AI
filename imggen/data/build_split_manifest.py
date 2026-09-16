@@ -1,14 +1,4 @@
-"""One-off: build a single 2000-row manifest (one continuous RNG sequence, so
-no accidental content/seed duplication between halves - see the chat record
-for why two independent build_manifest() calls would have produced identical
-files), then split it into two standalone 1000-row manifests, one per model,
-so each model's generate script can run from its own file with zero
-coordination and zero row overlap. Rows keep their original global seed
-(42001-44000) even after the split, so seeds stay unique across BOTH files
-combined, not just within each one.
-
-    python -m imggen.data.build_split_manifest
-"""
+"""One-off: build a single 2000-row manifest (one continuous RNG sequence, so no accidental content/seed duplication between halves - see the chat record for why two independent build_manifest() calls would have produced identical files), then split it into two standalone 1000-row manifests, one per model, so each model's generate script can run from its own file with zero coordination and zero row overlap."""
 from __future__ import annotations
 
 import json
@@ -86,7 +76,6 @@ hunyuan_path = out_dir / f"{STAGE}-hunyuan.json"
 flux_path.write_text(json.dumps(flux_manifest, indent=2), encoding="utf-8")
 hunyuan_path.write_text(json.dumps(hunyuan_manifest, indent=2), encoding="utf-8")
 
-# Sanity: zero content overlap between the two files (species+counts+density)
 def content_set(manifest):
     return {
         (tuple(sorted(r["class_ids"])), tuple(sorted(r["requested_counts"].items())), r["density"])

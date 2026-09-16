@@ -1,15 +1,4 @@
-"""Pod preflight - run this BEFORE downloading any model weights.
-
-Every check here is cheap (seconds, no large downloads) and each one catches a
-failure that would otherwise surface only after tens of GB have been pulled and
-paid for. In particular it verifies that the template's torch was actually built
-for Blackwell (sm_120) and that every gated HF repo is accessible, which is the
-single most common way this pipeline stalls on first run.
-
-    python -m tools.pod_preflight
-
-Exit code 0 = clear to download weights. Non-zero = fix before proceeding.
-"""
+"""Pod preflight - run this BEFORE downloading any model weights."""
 
 from __future__ import annotations
 
@@ -31,14 +20,6 @@ MODEL_REPOS = [
     "depth-anything/Depth-Anything-V2-Large-hf",
 ]
 
-# Weights + HF cache overhead + pilot outputs. For the 2-pilot 5-model
-# comparison (Z-Image-Turbo dropped - see generate.py's MODELS comment), all
-# cached simultaneously on one volume even though only one is ever
-# GPU-resident at a time: klein ~18GB + flux2dev+text-encoder ~90GB + SD3.5
-# ~16GB + Qwen-Image ~40GB (bf16, 20B; Lightning is a small LoRA on the same
-# base, negligible extra), plus SAM3/GDINO/DA-V2. This is a rough sum, not
-# measured - treat a free-space check that barely passes as a reason to
-# verify actual usage partway through downloads, not as comfortable headroom.
 REQUIRED_GB = 180
 
 
@@ -76,14 +57,8 @@ def check_gpu() -> None:
 
     check("device", True, f"{props.name} ({vram_gb:.1f} GB, {cc})")
 
-    # 32GB card is the whole basis of the model sizing in the plan.
     check("vram >= 30 GB", vram_gb >= 30, f"{vram_gb:.1f} GB")
 
-    # The real Blackwell trap: a template built for cu121 has no sm_120 kernels
-    # and every GPU op fails, despite cuda.is_available() returning True.
-    # An exact arch_list match is not required - kernels for a lower minor
-    # version of the same major arch run fine (sm_86 kernels work on sm_89) -
-    # so this is informational and the matmul below is the authoritative test.
     arches = torch.cuda.get_arch_list()
     if cc in arches:
         check(f"torch built for {cc}", True)
@@ -109,10 +84,6 @@ def check_storage() -> None:
 
     target = hf_home or "/workspace"
     if not os.path.isdir(target):
-        # huggingface_hub creates this dir lazily on first download, so an
-        # absent leaf directory just means "not downloaded yet", not "broken".
-        # What actually matters is that the parent (the mounted volume) exists
-        # and is writable.
         parent = os.path.dirname(target.rstrip("/")) or "/"
         if os.path.isdir(parent) and os.access(parent, os.W_OK):
             try:
@@ -155,7 +126,6 @@ def check_hf_access() -> None:
         check("token valid", False, str(e))
         return
 
-    # Metadata only - no weights pulled. Catches unaccepted licenses in seconds.
     for repo in MODEL_REPOS:
         try:
             api.model_info(repo)

@@ -1,25 +1,4 @@
-"""Chapter 5 result figures -- turns the run/stat JSON artefacts into the
-publication figures the results chapter references. One module, one figure per
-function, a --figure selector to render one or all. Every figure is written as
-both .pdf (for \\includegraphics) and .png (for a quick look) into
-thesis/Writing/figures/.
-
-    python -m imggen.analysis.plot_results --figure all
-    python -m imggen.analysis.plot_results --figure transfer
-
-Figures
-    transfer          8-cell sim2real mAP50 (4 regimes x 2 configs), Base ref lines
-    per_class         per-class AP50 across regimes (tuned config)  [RQ4]
-    domain_stats      4 water statistics per regime vs the real DUO target [RQ3]
-    synthetic_vs_real own-val vs real-test mAP50 dumbbell (the saturation result)
-    count             instance-count compliance trajectory across generator versions
-
-Data sources (all already on disk):
-    runs/eval_duo/comparison.json                  overall + per-class DUO scores
-    runs/train/<run>_summary.json                 per-run own-validation mAP50
-    reports/water_stats/*.json                     per-regime + real-target water stats
-    reports/analysis/cross_version_analysis.json   requested-vs-detected counts
-"""
+"""Chapter 5 result figures -- turns the run/stat JSON artefacts into the publication figures the results chapter references."""
 
 from __future__ import annotations
 
@@ -31,9 +10,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ---------------------------------------------------------------------------
-# shared config
-# ---------------------------------------------------------------------------
 
 ROOT = Path(__file__).resolve().parents[2]
 FIG_DIR = ROOT / "thesis" / "Writing" / "figures"
@@ -47,7 +23,6 @@ plt.rcParams.update({
     "figure.dpi": 150,
 })
 
-# regime label -> (default-config run key, tuned-config run key) in summary.json
 REGIMES = [
     ("Base",               "v9_flux2dev",                  "v9_flux2dev_v2"),
     ("Placeholder",        "v9_flux2dev_placeholder_dr",   "v9_flux2dev_placeholder_dr_v2"),
@@ -56,7 +31,6 @@ REGIMES = [
 ]
 CLASSES = ["starfish", "sea_urchin", "scallop"]
 
-# regime -> water-stats file (base is the clean generated set; real is the target)
 STAT_FILES = {
     "Base":               "flux2dev_v9_water_stats.json",
     "Placeholder":        "v9_dr_placeholder_water_stats.json",
@@ -71,9 +45,8 @@ STATS = [
     ("luminance_std", "luminance std"),
 ]
 
-# muted, colour-blind-safe-ish palette
 C_DEFAULT, C_TUNED = "#8aa9c9", "#2f4b6e"
-C_REGIME = ["#b0b7bd", "#8aa9c9", "#3d7a63", "#c0743a"]  # base/placeholder/calibrated/scatter
+C_REGIME = ["#b0b7bd", "#8aa9c9", "#3d7a63", "#c0743a"]
 C_OWNVAL, C_REAL = "#c0743a", "#2f4b6e"
 
 
@@ -89,10 +62,6 @@ def _save(fig, name: str) -> None:
     print(f"  wrote {name}.pdf / .png")
 
 
-# ---------------------------------------------------------------------------
-# figure 1 -- 8-cell transfer
-# ---------------------------------------------------------------------------
-
 def fig_transfer() -> None:
     models = _load(ROOT / "runs/eval_duo/comparison.json")["models"]
     labels = [r[0] for r in REGIMES]
@@ -105,7 +74,6 @@ def fig_transfer() -> None:
     b1 = ax.bar([i - w / 2 for i in x], default, w, label="default config", color=C_DEFAULT)
     b2 = ax.bar([i + w / 2 for i in x], tuned, w, label="tuned config", color=C_TUNED)
 
-    # Base reference lines make the default-config sign flip visible.
     ax.axhline(default[0], ls="--", lw=0.9, color=C_DEFAULT, zorder=0)
     ax.axhline(tuned[0], ls="--", lw=0.9, color=C_TUNED, zorder=0)
 
@@ -119,10 +87,6 @@ def fig_transfer() -> None:
     ax.legend(frameon=False, loc="upper left")
     _save(fig, "fig_transfer_bars")
 
-
-# ---------------------------------------------------------------------------
-# figure 2 -- per-class AP50 across regimes (tuned config)
-# ---------------------------------------------------------------------------
 
 def fig_per_class() -> None:
     models = _load(ROOT / "runs/eval_duo/comparison.json")["models"]
@@ -142,10 +106,6 @@ def fig_per_class() -> None:
               bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0)
     _save(fig, "fig_per_class_ap")
 
-
-# ---------------------------------------------------------------------------
-# figure 3 -- calibration in image-statistic space [RQ3]
-# ---------------------------------------------------------------------------
 
 def fig_domain_stats() -> None:
     real = _load(ROOT / "reports/water_stats" / REAL_STAT_FILE)["aggregate"]
@@ -169,18 +129,14 @@ def fig_domain_stats() -> None:
     _save(fig, "fig_domain_stats")
 
 
-# ---------------------------------------------------------------------------
-# figure 4 -- synthetic validation vs real transfer (the saturation result)
-# ---------------------------------------------------------------------------
-
 def fig_synthetic_vs_real() -> None:
-    rows = []  # (label, own_val, real)
+    rows = []
     for label, default_key, tuned_key in REGIMES:
         for cfg, key in (("default", default_key), ("tuned", tuned_key)):
             s = _load(ROOT / f"runs/train/{key}_summary.json")
             rows.append((f"{label.replace(chr(10), ' ')} ({cfg})",
                          s["own_val"]["map50"], s["duo_test"]["map50"]))
-    rows.reverse()  # first regime at top
+    rows.reverse()
 
     fig, ax = plt.subplots(figsize=(6.8, 4.2))
     ys = range(len(rows))
@@ -195,17 +151,11 @@ def fig_synthetic_vs_real() -> None:
     _save(fig, "fig_synthetic_vs_real")
 
 
-# ---------------------------------------------------------------------------
-# figure 5 -- instance-count compliance across generator versions
-# ---------------------------------------------------------------------------
-
 def fig_count() -> None:
     data = _load(ROOT / "reports/analysis/cross_version_analysis.json")
-    # keep the flux2dev version series (v3..v7) in order
     versions = [k for k in ("flux2dev_v3", "flux2dev_v4", "flux2dev_v5",
                             "flux2dev_v6", "flux2dev_v7") if k in data]
     exact_rate = [data[v]["n_exact"] / data[v]["n_images"] for v in versions]
-    # scallop (class 2) over-generation ratio = detected / requested
     scallop_ratio = [data[v]["detected"].get("2", 0) / data[v]["requested"].get("2", 1)
                      for v in versions]
     short = [v.replace("flux2dev_", "") for v in versions]

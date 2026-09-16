@@ -1,32 +1,4 @@
-"""Stage 5 - YOLO26s training, the planned 2x2 ablation:
-    {original, original+DR} x {no augmentation, with augmentation}
-
-Runs locally (RTX 4060 Laptop GPU, 8GB VRAM) - no pod needed. The dataset is
-tiny (20-40 images), so YOLO26s at 640px comfortably fits an 8GB card and
-each run finishes in minutes, not hours.
-
-Each regime starts from a FRESH yolo26s.pt checkpoint (no state carried over
-between runs, so all 4 are a fair independent comparison) and lands in its
-own clearly-named folder:
-
-    runs/train/original_no_aug/       weights/best.pt, results.csv, results.png, ...
-    runs/train/original_aug/
-    runs/train/original_dr_no_aug/
-    runs/train/original_dr_aug/
-
-The "no augmentation" runs load dataset/hyp/no_aug.yaml (every augmentation
-term zeroed - see assemble_dataset.py for why this is a training-time toggle
-rather than pre-baked files); the "with augmentation" runs use Ultralytics'
-own built-in defaults untouched.
-
-data.yaml's val: currently points at images/train (Stage 4's pilot-scale
-default, no held-out val set) - so these are train-set metrics, expected to
-be optimistic. That's a known, flagged limitation at this pilot scale, not a
-bug - see the plan doc's Stage 4 section.
-
-    python -m imggen.train.yolo
-    python -m imggen.train.yolo --epochs 50 --regimes original_no_aug
-"""
+"""Stage 5 - YOLO26s training, the planned 2x2 ablation: {original, original+DR} x {no augmentation, with augmentation} Runs locally (RTX 4060 Laptop GPU, 8GB VRAM) - no pod needed."""
 
 from __future__ import annotations
 
@@ -53,10 +25,6 @@ def main() -> None:
     ap.add_argument("--regimes", nargs="+", choices=sorted(REGIMES), default=sorted(REGIMES))
     args = ap.parse_args()
 
-    # Resolve to absolute: this machine's global ultralytics settings.json has
-    # its own runs_dir (and an unrelated project's datasets_dir) that silently
-    # doubles up any relative project= path - e.g. "runs/train" landed at
-    # "runs/detect/runs/train/<name>" in testing. Absolute sidesteps that.
     args.project = args.project.resolve()
 
     from ultralytics import YOLO
@@ -66,7 +34,7 @@ def main() -> None:
         cfg = REGIMES[name]
         print(f"\n{'=' * 70}\n{name}  (data={cfg['data']}  hyp={cfg['hyp'] or 'ultralytics defaults'})\n{'=' * 70}")
 
-        model = YOLO(args.model)  # fresh pretrained checkpoint per regime - no cross-run state
+        model = YOLO(args.model)
         train_kwargs = dict(
             data=cfg["data"],
             epochs=args.epochs,

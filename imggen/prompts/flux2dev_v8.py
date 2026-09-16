@@ -1,90 +1,4 @@
-"""
-prompts_flux2dev_v8.py
-=======================
-Prompt engine v8 - ONE fix on top of v7: drops "shell" from
-COLOR_PALETTE_GUARD. Nothing else changes from v7 - user's own visual
-review of v7's output concluded it already has the upper hand over Hunyuan
-(camera-to-object distance reads better than Hunyuan's "product photograph"
-look, and the haziness gap is minor and acceptable) - so this file is
-deliberately a single, narrow fix, not a broader rework.
-
-THE BUG: cross-version SAM3 analysis (comparing requested vs detected counts
-across every flux2dev v3-v7 and Hunyuan v1/v4 output, all 50-image full
-runs) found scallop-leak (phantom scallop detections in scenes that
-requested ZERO scallops) is near-zero in every version EXCEPT v7 (11/50
-images) and Hunyuan v4 (19/50 images, prompts_hunyuan_v4.py) - the two
-versions that introduced this exact COLOR_PALETTE_GUARD wording:
-"seabed, rock and shell material in muted natural tones, not vivid or
-saturated". No earlier version of either model's prompt engine mentions
-"shell" in its colour guard. Visually confirmed via outputs/flux2dev/v7/
-row 025 and row 043 - both requested zero scallops, both genuinely contain
-dozens of individually-rendered scallop shells scattered across the seabed,
-not a SAM3 detection artifact.
-
-Likely mechanism: same "ironic rebound" pattern already documented once
-this project (prompts_hunyuan_v2/v3's equipment-exclusion list backfiring)
-- naming a concept in the prompt, even in a neutral regulatory context
-("keep X's colour muted"), appears to prime the model to generate X into
-the scene regardless of whether X was requested. This is the second time
-this exact mechanism has caused a scallop-specific defect - the first was
-flux2dev v4's "occasional shell fragments" scene-template phrase (fixed in
-v5 by dropping the phrase; the fix measurably worked, v4's 4/50 leak rate
-dropped to v5's 1/50).
-
-THE FIX:
-    COLOR_PALETTE_GUARD = "seabed, rock and shell material in muted natural tones, not vivid or saturated"
-    -> "seabed and rock material in muted natural tones, not vivid or saturated"
-
-Nothing else in this file differs from prompts_flux2dev_v7.py - same
-CAMERA_HEIGHTS["far"] forcing, same SUBJECT_SCALE_GUARD, same materials-only
-scoping rationale, same everything. See prompts_flux2dev_v7.py's own
-docstring (reproduced below) for the full history this file doesn't touch.
-
-NOT YET RUN. Needs a smoke test and then a full 50-image run before trusting
-the fix actually closes the scallop-leak gap - this is a hypothesis backed
-by strong correlational evidence (two independent cases of the same
-mechanism), not a guarantee.
-
---- prompts_flux2dev_v7.py's own docstring follows for everything this file
-didn't touch ---
-
-Prompt engine v7 - narrows COLOR_PALETTE_GUARD to substrate/organism
-materials only, on top of v6's camera-distance work.
-
-WHY: real quantitative evidence, not a subjective call. water_stats.py
-(built in a parallel session, computes pixel-level colour-cast stats -
-mean_rgb, ratio_rg/ratio_bg, dark-channel haziness) compared against 5,448
-real DUO training images found DUO's actual water is GREEN-dominant
-(ratio_rg=0.451 - red is under half of green), not blue and not the
-brown/beige v5's COLOR_PALETTE_GUARD aimed for. Worse: v5's guard measurably
-moved the WRONG direction - ratio_rg went from v4's 1.024 to v5's 1.102 (MORE
-red-dominant), while the Stage 3 domain-randomization pipeline's own output
-(reports/water_stats/5pilot_dr_placeholder_water_stats.json) already sits at 0.902,
-closer to DUO's real value than anything Stage 1 has produced, with no
-Stage-1 colour guard driving it there at all.
-
-CONCLUSION: Stage 3 (Akkaynak-Treibitz domain randomization,
-imggen/dr/randomize.py) is the component actually responsible for imposing
-realistic water colour as a physically-motivated post-process - Stage 1
-chasing DUO's water-tint statistics directly is redundant with, and
-apparently working against, what Stage 3 already does starting from
-SCENE_WATER_PHRASE's deliberately clear/colour-neutral render. What Stage 1
-SHOULD keep constraining is the substrate/organism MATERIAL colour (sand,
-rock tones) - not vivid/saturated, but not chasing a specific water cast
-either, since that's not this stage's job.
-
-v6's camera-distance work (CAMERA_HEIGHTS["far"], SUBJECT_SCALE_GUARD,
-forced camera_height="far" in the generate script) carries forward
-unchanged - user's own visual review (2026-08-15) of v7's full 50-image run
-confirmed this combination reads as a proper survey-distance shot, not
-Hunyuan's close "product photograph" look, and specifically re-checked the
-3 rows (22, 28, 30) that were defective in v6 (robot-in-frame, blob
-urchins) - all clean in v7.
-
-Everything else (CLASSES, SCENE_TEMPLATES, framing, count ranges, guards)
-is unchanged from v6/v5/v4/v3/v2 - see prompts_flux2dev_v7.py for the full
-chained docstring history.
-"""
+"""Prompt engine v8 - ONE fix on top of v7: drops "shell" from COLOR_PALETTE_GUARD."""
 
 from __future__ import annotations
 
@@ -92,10 +6,6 @@ import random
 from dataclasses import dataclass, asdict
 from typing import Optional
 
-
-# ============================================================================
-# CLASS DEFINITIONS (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
 
 CLASSES: dict[int, dict[str, object]] = {
 
@@ -170,10 +80,6 @@ CLASSES: dict[int, dict[str, object]] = {
 }
 
 
-# ============================================================================
-# SCENE / ENVIRONMENT (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
-
 SCENE_TEMPLATES = [
     "temperate coastal seabed - sand, coarse sediment, gravel, irregular rocks, shallow ledges",
     "open sandy plain - fine sand, only occasional scattered pebbles, very little exposed rock",
@@ -208,10 +114,6 @@ ROCK_FORMATIONS = [
     "a low pile of rubble and small boulders nearby",
 ]
 
-
-# ============================================================================
-# ECOLOGICAL / COMPOSITIONAL CONDITIONS (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
 
 SCENE_DENSITIES = {
     "sparse": "relatively open seabed, substantial exposed sediment, limited clutter",
@@ -277,18 +179,11 @@ DEPTH_DISTRIBUTIONS = [
 ]
 
 
-# ============================================================================
-# POSITIVE GUARDS
-# ============================================================================
-
 COMPOSITION_GUARD = "natural asymmetric spacing, no decorative symmetry or cloned objects"
 SPECIES_GUARD = "only these organisms and seabed material in frame, no other animals"
 REALISM_GUARD = "plain documentary robot photo, no divers, boats, or CG rendering"
 OPTICAL_GUARD = "full frame, no fisheye or vignette"
 
-# v8 (this file): "shell" dropped - see module docstring. This was the only
-# change made in this file. Every other guard/pool/structure is identical
-# to prompts_flux2dev_v7.py.
 COLOR_PALETTE_GUARD = "seabed and rock material in muted natural tones, not vivid or saturated"
 
 SUBJECT_SCALE_GUARD = "organisms small in the wide view"
@@ -298,20 +193,12 @@ BIVALVE_GUARD = "bivalve shells fully closed and undisturbed"
 FRAMING_COUNT_ANCHOR = "count is a strict total for the frame, not per unit area"
 
 
-# ============================================================================
-# FRAMING (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
-
 FRAMING = {
     "close-up": "close survey framing at natural working distance, camera near the seabed but not a close macro product shot, objects at different distances",
     "mid": "mid-distance framing, foreground and mid-ground objects visible",
     "wide": "wide framing, larger section of seabed, objects at different depths",
 }
 
-
-# ============================================================================
-# OBJECT COUNT RANGES (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
 
 COUNT_RANGES = {
     0: {"sparse": (1, 2), "moderate": (1, 3), "dense": (2, 4)},
@@ -320,13 +207,8 @@ COUNT_RANGES = {
 }
 
 
-# ============================================================================
-# DATA STRUCTURES
-# ============================================================================
-
 @dataclass
 class PromptMetadata:
-    """Metadata describing the synthetic scene requested by the prompt."""
 
     seed: int
     density: str
@@ -345,10 +227,6 @@ class PromptMetadata:
     imaging_index: int
 
 
-# ============================================================================
-# RANDOM HELPERS (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
-
 def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
     index = rng.randrange(len(values))
     return values[index], index
@@ -360,16 +238,11 @@ def _random_count(rng: random.Random, class_id: int, density: str) -> int:
 
 
 def _drop_leading_article(text: str) -> str:
-    """Strip only a genuine leading 'a ' or 'an ', not every occurrence."""
     for article in ("an ", "a "):
         if text.startswith(article):
             return text[len(article):]
     return text
 
-
-# ============================================================================
-# CLASS PHRASE GENERATION (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
 
 def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     entry = CLASSES[class_id]
@@ -388,10 +261,6 @@ def class_phrase(class_id: int, count: int, rng: random.Random) -> str:
     )
 
 
-# ============================================================================
-# SCENE OBJECT GENERATION (unchanged from prompts_flux2dev_v7.py)
-# ============================================================================
-
 def generate_class_counts(
     rng: random.Random,
     density: str,
@@ -404,10 +273,6 @@ def generate_class_counts(
     return {cid: _random_count(rng, cid, density) for cid in sorted(selected)}
 
 
-# ============================================================================
-# PROMPT BUILDER
-# ============================================================================
-
 def build_prompt(
     counts: dict[int, int],
     *,
@@ -417,12 +282,6 @@ def build_prompt(
     camera_height: Optional[str] = None,
     framing: Optional[str] = None,
 ) -> tuple[str, PromptMetadata]:
-    """
-    Construct a complete underwater survey image-generation prompt.
-
-    Identical assembly logic to prompts_flux2dev_v7.py - only
-    COLOR_PALETTE_GUARD's text differs (see module docstring).
-    """
 
     rng = random.Random(seed)
 
@@ -527,10 +386,6 @@ def build_prompt(
 
     return prompt, metadata
 
-
-# ============================================================================
-# CLASS NAME HELPERS
-# ============================================================================
 
 def class_names() -> dict[int, str]:
     return {cid: entry["short"] for cid, entry in CLASSES.items()}

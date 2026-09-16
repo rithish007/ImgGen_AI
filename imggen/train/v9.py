@@ -1,13 +1,4 @@
-"""Train yolo26x.pt on the flux2dev v9 production dataset (900 train / 100
-val, from imggen/data/assemble_v9_dataset.py) and score it against the real DUO
-test set (dataset/real_eval, 778 images, class-remapped).
-
-Same conventions as the earlier pilot ablation (imggen/train/pilot_ablation.py):
-mosaic/mixup off, everything else Ultralytics-default, fresh pretrained
-checkpoint, 100 epochs.
-
-    python -m imggen.train.v9
-"""
+"""Train yolo26x.pt on the flux2dev v9 production dataset (900 train / 100 val, from imggen/data/assemble_v9_dataset.py) and score it against the real DUO test set (dataset/real_eval, 778 images, class-remapped)."""
 from __future__ import annotations
 
 import json

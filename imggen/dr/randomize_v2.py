@@ -1,50 +1,4 @@
-"""
-Stage 3b v2 - DUO-calibrated underwater image formation + target-domain
-scattering/detail degradation.
-
-IMPORTANT:
-    This is a NEW experimental calibration pipeline.
-    Existing domain_randomize.py and all three original profiles remain untouched.
-
-DESIGN:
-    Starts from the existing "duo_calibrated" profile:
-        - beta pinned to Jerlov 1C
-        - DUO-measured veiling light
-        - target-domain colour calibration
-
-    Adds a second, explicitly separated camera/water-observation stage intended
-    to close the remaining DUO gap in:
-        - local contrast
-        - high-frequency detail
-        - underwater scattering softness
-
-NEW PROFILE:
-    duo_calibrated_scatter
-
-The original colour/attenuation model is preserved.
-Only the post-formation observation model is changed.
-
-Pipeline:
-    clean synthetic image
-        -> Akkaynak/Treibitz colour + attenuation
-        -> controlled scattering blur
-        -> local contrast reduction
-        -> sensor noise
-        -> optional mild vignette
-
-No neural network, no GPU, deterministic per-image seed.
-
-The calibration target is DUO's measured image statistics.
-
-Target values:
-    ratio_rg            ~= 0.438
-    ratio_bg            ~= 0.580
-    dark_channel_mean   ~= 0.192
-    luminance_std       ~= 0.093
-
-The existing duo_calibrated profile already improves the colour statistics.
-This profile specifically attacks the remaining sharpness/contrast gap.
-"""
+"""Stage 3b v2 - DUO-calibrated underwater image formation + target-domain scattering/detail degradation."""
 
 from __future__ import annotations
 
@@ -56,10 +10,6 @@ from pathlib import Path
 
 from imggen.dr import jerlov_anchored
 
-
-# ============================================================================
-# EXISTING DUO CALIBRATION VALUES — FROZEN
-# ============================================================================
 
 DUO_CALIBRATED_WATER_TYPE = "1C"
 
@@ -78,43 +28,22 @@ MIN_BETA_B_ABSOLUTE = 0.01
 ANCHOR_WIDTH_FRAC = 0.25
 
 
-# ============================================================================
-# NEW TARGET-DOMAIN IMAGE-DEGRADATION PARAMETERS
-# ============================================================================
-
-# Gaussian scattering blur at 1024 px.
-#
-# Kept deliberately mild: the purpose is not to make images obviously blurry,
-# but to reduce the synthetic image's excessive high-frequency detail.
 SCATTER_SIGMA_RANGE = (0.35, 1.25)
 
-# Additional mild directional softness.
-# 0 = no motion component.
 MOTION_BLUR_LENGTH_RANGE = (0.0, 3.0)
 
-# Contrast compression around image mean.
-#
-# 1.0 = unchanged
-# <1.0 = reduced local/global contrast
 CONTRAST_SCALE_RANGE = (0.72, 0.92)
 
-# Slight brightness compression after contrast reduction.
 BRIGHTNESS_SCALE_RANGE = (0.96, 1.02)
 
-# Sensor noise.
 SIGMA_READ_RANGE = (0.002, 0.008)
 SIGMA_SHOT_RANGE = (0.008, 0.035)
 
 NOISE_DEPTH_GAIN = 0.4
 
-# Keep vignette secondary.
 VIGNETTE_STRENGTH_RANGE = (0.0, 0.20)
 VIGNETTE_CENTER_OFFSET_RANGE = (-0.12, 0.12)
 
-
-# ============================================================================
-# TARGET CALIBRATION
-# ============================================================================
 
 def z_far_beta_b_cap(
     z_far: float,
@@ -168,7 +97,6 @@ def sample_params(seed: int, z_far: float) -> dict:
         "beta_b_cap_used": cap,
         "b_ref": rng.uniform(*B_REF_RANGE),
 
-        # Existing DUO colour calibration.
         "duo_target_jitter": tuple(
             rng.uniform(
                 1.0 - DUO_TARGET_JITTER_FRAC,
@@ -177,7 +105,6 @@ def sample_params(seed: int, z_far: float) -> dict:
             for _ in range(3)
         ),
 
-        # NEW observation-domain parameters.
         "scatter_sigma": rng.uniform(
             *SCATTER_SIGMA_RANGE
         ),
@@ -211,10 +138,6 @@ def sample_params(seed: int, z_far: float) -> dict:
 
     return params
 
-
-# ============================================================================
-# UNDERWATER FORMATION MODEL
-# ============================================================================
 
 def transform_image(
     j_img,
@@ -281,10 +204,6 @@ def transform_image(
         },
     )
 
-
-# ============================================================================
-# SCATTERING / DETAIL LOSS
-# ============================================================================
 
 def apply_scattering_blur(
     img,
@@ -499,10 +418,6 @@ def np_clip(img):
     import numpy as np
     return np.clip(img, 0.0, 1.0)
 
-
-# ============================================================================
-# CLI
-# ============================================================================
 
 def main() -> None:
     ap = argparse.ArgumentParser(

@@ -1,26 +1,4 @@
-"""Stage 1 generation - flux2dev v9, starfish-focused prompt engine
-(prompts_flux2dev_v9_starfish.py) instead of v8's. Everything else - crash-
-resume, multi-GPU bf16 loading, manifest/row handling - is identical to
-generate_flux2dev_v9.py; only the prompt import changed. Duplicated rather
-than parameterizing generate_flux2dev_v9.py's import, matching this
-pipeline's established convention of one file per prompt-engine version
-(see prompts_flux2dev_v8.py's predecessors).
-
-Targets the same production manifest as the v9 base run
-(manifests/benthic-survey-1000-flux2dev.json) so this is a direct,
-apples-to-apples regeneration of the same 1000 (seed, counts, density,
-framing) requests under the new starfish-camouflage prompt wording - not a
-new sample.
-
-    # smoke test first
-    python -m imggen.generate.flux2dev_v9_starfish --model flux2dev --manifest manifests/benthic-survey-1000-flux2dev.json --limit 3 --out outputs/flux2dev/v9_starfish/smoke
-
-    # full run (safe to re-run after an interruption - already-done rows are skipped)
-    python -m imggen.generate.flux2dev_v9_starfish --model flux2dev --manifest manifests/benthic-survey-1000-flux2dev.json --out outputs/flux2dev/v9_starfish
-
-Outputs PNG + sidecar JSON per image under outputs/<stage>/<model>/ - same
-convention as generate.py, so annotate.py works on these outputs unmodified.
-"""
+"""Stage 1 generation - flux2dev v9, starfish-focused prompt engine (prompts_flux2dev_v9_starfish.py) instead of v8's."""
 
 from __future__ import annotations
 
@@ -32,14 +10,6 @@ from pathlib import Path
 
 from imggen.prompts.flux2dev_v9_starfish import build_prompt
 
-# The production manifest (built for v8's 3-way {close-up, mid, wide}
-# FRAMING vocabulary) has 345/1000 rows requesting "close-up" - but the
-# starfish prompt engine deliberately dropped "close-up" from its own
-# FRAMING dict as part of the SUBJECT_SCALE_GUARD fix (diagnosis finding:
-# generated objects sit too large/close in frame vs real DUO photos), so it
-# only defines {mid, wide}. Remap here rather than reintroducing "close-up"
-# text into the prompt engine, which would undo that fix. "mid" is the
-# closer of the two remaining options, so it's the natural downgrade target.
 FRAMING_COMPAT = {"close-up": "mid"}
 
 MODELS = {
@@ -49,9 +19,6 @@ MODELS = {
         "steps": 50,
         "guidance": 4.0,
         "guidance_param": "guidance_scale",
-        # ~106-112GB combined bf16 (transformer + text_encoder) - no
-        # quantization this round, split across 2 GPUs instead. See
-        # _load_flux2dev_multi_gpu().
         "approx_vram_gb": 112,
         "multi_gpu": True,
         "lora": None,
@@ -60,17 +27,6 @@ MODELS = {
 
 
 def _load_flux2dev_multi_gpu(cfg: dict):
-    """Load flux2dev at full bf16 precision across 2 GPUs, no quantization.
-
-    Primary path: diffusers' device_map="balanced", which lets diffusers'
-    own accelerate-backed dispatch decide the split and - critically -
-    correctly handles moving intermediate tensors between devices during the
-    forward pass.
-
-    Fallback: manual placement (text_encoder -> cuda:1, transformer/vae ->
-    cuda:0). This is NOT guaranteed correct - see generate_flux2dev_v7.py's
-    identical comment for the full explanation of why, unchanged here.
-    """
     import torch
     import diffusers
 

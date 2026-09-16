@@ -1,24 +1,4 @@
-"""Build a single YOLO-format dataset from flux2dev v9 (the 1000-image
-production run) + its fresh SAM3 labels. Straightforward 90/10 train/val
-split, kept at native 1024x1024 (source is already square, so labels carry
-over unchanged - see imggen/data/assemble_dataset.py for why that only holds for a
-square source).
-
-Stored at native resolution deliberately, NOT pre-downscaled to a fixed
-training size - Ultralytics' own dataloader letterboxes/resizes to whatever
-`imgsz` a given training run uses, so pre-shrinking here just throws away
-detail the dataloader would otherwise have available. An earlier version of
-this (and every other assemble_v9*.py script) hard-resized to 640, which was
-harmless while every run also trained at imgsz=640, but became actively
-counterproductive once the heavy-aug recipe moved to imgsz=896: every image
-was being upsampled from an already-shrunk 640px copy instead of the
-1024px original.
-
-Run on the pod, from /workspace/ImgGen_AI, after imggen/data/annotate.py has
-produced outputs/flux2dev/v9/labels/sam3/.
-
-    python -m imggen.data.assemble_v9_dataset
-"""
+"""Build a single YOLO-format dataset from flux2dev v9 (the 1000-image production run) + its fresh SAM3 labels."""
 from __future__ import annotations
 
 import argparse

@@ -1,11 +1,4 @@
-"""Train yolo26x.pt on dataset/v9_flux2dev_duo_scatter_dr (duo_calibrated +
-blur/scattering DR, label-fix applied) with the same heavy-augmentation/
-optimizer regime as imggen/train/v9_duo_v3.py - see that module's docstring
-for full rationale. Deliberately identical hyperparameters across all four
-v2/v3 runs so the dataset is the only varying factor.
-
-    python -m imggen.train.v9_duo_scatter_v2
-"""
+"""Train yolo26x.pt on dataset/v9_flux2dev_duo_scatter_dr (duo_calibrated + blur/scattering DR, label-fix applied) with the same heavy-augmentation/ optimizer regime as imggen/train/v9_duo_v3.py - see that module's docstring for full rationale."""
 from __future__ import annotations
 
 import json

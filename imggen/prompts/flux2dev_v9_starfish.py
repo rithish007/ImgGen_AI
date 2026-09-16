@@ -1,28 +1,4 @@
-"""
-Flux2Dev v9 - starfish-focused synthetic underwater prompt engine.
-
-This is a new experimental variant derived from prompts_flux2dev_v8.py.
-The existing v8 file is untouched.
-
-Primary change:
-    Starfish are generated as small, low-contrast, partially camouflaged
-    benthic organisms rather than visually clean hero objects.
-
-Goal:
-    Reduce the morphology/appearance/context gap identified for the DUO
-    starfish class.
-
-Design principles:
-    - small apparent object size
-    - tan/brown/grey natural coloration
-    - rough, irregular surface texture
-    - irregular arm geometry
-    - partial burial and occlusion
-    - substrate contact
-    - low contrast against seabed
-    - non-hero composition
-    - varying apparent distance
-"""
+"""Flux2Dev v9 - starfish-focused synthetic underwater prompt engine."""
 
 
 from __future__ import annotations
@@ -32,15 +8,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-# ============================================================================
-# CLASS DEFINITIONS
-# ============================================================================
-
 CLASSES: dict[int, dict[str, object]] = {
 
-    # ------------------------------------------------------------------------
-    # STARFISH — TARGETED REVISION
-    # ------------------------------------------------------------------------
 
     0: {
         "duo_label": "starfish",
@@ -78,9 +47,6 @@ CLASSES: dict[int, dict[str, object]] = {
         ],
     },
 
-    # ------------------------------------------------------------------------
-    # SEA URCHIN
-    # ------------------------------------------------------------------------
 
     1: {
         "duo_label": "echinus",
@@ -105,9 +71,6 @@ CLASSES: dict[int, dict[str, object]] = {
         ],
     },
 
-    # ------------------------------------------------------------------------
-    # SCALLOP
-    # ------------------------------------------------------------------------
 
     2: {
         "duo_label": "scallop",
@@ -132,10 +95,6 @@ CLASSES: dict[int, dict[str, object]] = {
     },
 }
 
-
-# ============================================================================
-# ENVIRONMENT
-# ============================================================================
 
 SCENE_TEMPLATES = [
     "temperate coastal seabed with fine sand, coarse sediment, gravel and irregular low rocks",
@@ -171,10 +130,6 @@ ROCK_FORMATIONS = [
     "a low pile of rubble and small boulders nearby",
 ]
 
-
-# ============================================================================
-# COMPOSITION / CAMERA
-# ============================================================================
 
 SCENE_DENSITIES = {
     "sparse": "relatively open seabed with substantial exposed sediment and limited clutter",
@@ -238,10 +193,6 @@ DEPTH_DISTRIBUTIONS = [
 ]
 
 
-# ============================================================================
-# GUARDS
-# ============================================================================
-
 COMPOSITION_GUARD = (
     "natural asymmetric spacing, no decorative symmetry, "
     "no cloned or repeated-looking objects"
@@ -286,10 +237,6 @@ FRAMING_COUNT_ANCHOR = (
 )
 
 
-# ============================================================================
-# FRAMING
-# ============================================================================
-
 FRAMING = {
     "mid": (
         "mid-distance benthic survey framing with foreground and "
@@ -301,10 +248,6 @@ FRAMING = {
     ),
 }
 
-
-# ============================================================================
-# COUNTS
-# ============================================================================
 
 COUNT_RANGES = {
     0: {

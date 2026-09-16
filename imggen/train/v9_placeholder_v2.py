@@ -1,13 +1,4 @@
-"""Train yolo26x.pt on dataset/v9_flux2dev_placeholder_dr (placeholder DR,
-label-fix applied) with the same heavy-augmentation/optimizer regime as
-imggen/train/v9_duo_v3.py - see that module's docstring for full rationale
-(MuSGD + low lr0 matching YOLO26's official recipe, imgsz=896 + freeze=10,
-mosaic/mixup/copy_paste/scale/hsv pushed per user directive and this
-project's own DR literature research). Deliberately identical hyperparameters
-across all four v2/v3 runs so the dataset is the only varying factor.
-
-    python -m imggen.train.v9_placeholder_v2
-"""
+"""Train yolo26x.pt on dataset/v9_flux2dev_placeholder_dr (placeholder DR, label-fix applied) with the same heavy-augmentation/optimizer regime as imggen/train/v9_duo_v3.py - see that module's docstring for full rationale (MuSGD + low lr0 matching YOLO26's official recipe, imgsz=896 + freeze=10, mosaic/mixup/copy_paste/scale/hsv pushed per user directive and this project's own DR literature research)."""
 from __future__ import annotations
 
 import json

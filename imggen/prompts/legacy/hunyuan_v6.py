@@ -1,31 +1,4 @@
-"""
-prompts_hunyuan_v6.py
-======================
-HunyuanImage-3.0 prompt engine for synthetic underwater benthic survey imagery.
-
-v6 is a structural rewrite of v5. The goal is not to add more negative guards;
-it changes the semantic hierarchy of the prompt so Hunyuan treats the seabed
-habitat as the primary scene and the requested organisms as naturally occurring
-parts of that habitat.
-
-Design principles
------------------
-1. Habitat first, organisms second.
-2. Camera geometry is fixed to an elevated 5-8 m seabed distance.
-3. No random close/mid/wide framing variable. The old framing vocabulary could
-   contradict the mandatory survey distance and encourage specimen-like shots.
-4. Ecological placement is generated separately from morphology. Organisms are
-   described as distributed through terrain rather than staged around rocks.
-5. Avoid exclusion-heavy wording that names unwanted visual concepts. v2/v3
-   showed that explicit lists of unwanted equipment could backfire, so v6 uses
-   positive scene descriptions instead.
-6. The image should contain a large continuous habitat with a substantial water
-   column between camera and seabed. No single organism is the visual anchor.
-7. Keep class-count semantics compatible with the existing manifest format.
-
-This file is intentionally written for HunyuanImage-3.0 Pretrain. It does not
-rely on automatic prompt recaptioning.
-"""
+"""HunyuanImage-3.0 prompt engine for synthetic underwater benthic survey imagery."""
 
 from __future__ import annotations
 
@@ -33,10 +6,6 @@ import random
 from dataclasses import asdict, dataclass
 from typing import Optional
 
-
-# ============================================================================
-# CLASS DEFINITIONS
-# ============================================================================
 
 CLASSES: dict[int, dict[str, object]] = {
     0: {
@@ -94,10 +63,6 @@ CLASSES: dict[int, dict[str, object]] = {
 }
 
 
-# ============================================================================
-# HABITAT CONSTRUCTION
-# ============================================================================
-
 HABITAT_TEMPLATES = [
     "a temperate coastal seabed of sand, gravel, coarse sediment and irregular low rocks",
     "an open sandy seabed with broad sediment areas, occasional rounded stones and low rock patches",
@@ -150,10 +115,6 @@ BACKGROUND_DEBRIS_VARIATIONS = [
 ]
 
 
-# ============================================================================
-# ECOLOGICAL CONDITIONS
-# ============================================================================
-
 SCENE_DENSITIES = {
     "sparse": "a relatively open seabed with large areas of exposed substrate and low biological clutter",
     "moderate": "a naturally varied seabed with rocks, sediment, algae and organisms distributed across broad areas",
@@ -182,10 +143,6 @@ GROUP_BEHAVIOUR = [
     "local clusters remain small and environmentally plausible within surrounding open seabed",
 ]
 
-
-# ============================================================================
-# CAMERA / IMAGE GEOMETRY
-# ============================================================================
 
 CAMERA_HEIGHTS = {
     "far_5": "camera approximately 5 meters above the seabed",
@@ -223,10 +180,6 @@ IMAGE_SCALE = [
 ]
 
 
-# ============================================================================
-# ATMOSPHERE / WATER / IMAGING
-# ============================================================================
-
 WATER_CONDITIONS = [
     "clear blue-green water with realistic distance-dependent attenuation",
     "natural blue-green underwater water column with mild suspended particulate matter",
@@ -257,10 +210,6 @@ PERSPECTIVE_VARIATIONS = [
     "broad field survey composition following the geometry of the terrain",
 ]
 
-
-# ============================================================================
-# POSITIVE-ONLY GUARDS
-# ============================================================================
 
 SURVEY_IDENTITY = (
     "authentic benthic habitat survey image from an elevated underwater inspection camera"
@@ -295,10 +244,6 @@ BROAD_CONTEXT = (
 )
 
 
-# ============================================================================
-# METADATA
-# ============================================================================
-
 @dataclass
 class PromptMetadata:
     seed: int
@@ -324,10 +269,6 @@ class PromptMetadata:
     legacy_framing: Optional[str]
 
 
-# ============================================================================
-# RANDOM HELPERS
-# ============================================================================
-
 def _choose(rng: random.Random, values: list[str]) -> tuple[str, int]:
     index = rng.randrange(len(values))
     return values[index], index
@@ -349,10 +290,6 @@ def _drop_leading_article(text: str) -> str:
             return text[len(article):]
     return text
 
-
-# ============================================================================
-# COUNT RANGES / CLASS FIELD GENERATION
-# ============================================================================
 
 COUNT_RANGES = {
     0: {"sparse": (1, 2), "moderate": (1, 3), "dense": (2, 4)},
@@ -385,10 +322,6 @@ def generate_class_counts(
     return {cid: _random_count(rng, cid, density) for cid in sorted(selected)}
 
 
-# ============================================================================
-# PROMPT BUILDER
-# ============================================================================
-
 def build_prompt(
     counts: dict[int, int],
     *,
@@ -398,16 +331,6 @@ def build_prompt(
     camera_height: Optional[str] = None,
     framing: Optional[str] = None,
 ) -> tuple[str, PromptMetadata]:
-    """
-    Construct a habitat-first HunyuanImage-3.0 prompt.
-
-    `framing` is retained only for manifest/API compatibility with older
-    generators. It is not used to control image composition because v6 makes
-    the 5-8 m survey geometry a hard scene property.
-
-    `camera_height` may be one of far_5/far_6/far_7/far_8. For compatibility,
-    the legacy value "far" is accepted and sampled from the four survey heights.
-    """
     rng = random.Random(seed)
 
     if density is None:
@@ -430,7 +353,6 @@ def build_prompt(
             f"Invalid camera height {camera_height!r}. Expected one of {list(CAMERA_HEIGHTS)} or 'far'"
         )
 
-    # Select scene variables in a stable order so seeds remain reproducible.
     habitat, habitat_idx = _choose(rng, HABITAT_TEMPLATES)
     topography, topography_idx = _choose(rng, TOPOGRAPHY_VARIATIONS)
     algae, algae_idx = _choose(rng, ALGAE_VARIATIONS)
@@ -447,7 +369,6 @@ def build_prompt(
     perspective, perspective_idx = _choose(rng, PERSPECTIVE_VARIATIONS)
     image_scale, image_scale_idx = _choose(rng, IMAGE_SCALE)
 
-    # Build class descriptions only after the environment has been selected.
     subject_phrases: list[str] = []
     for class_id in sorted(counts):
         if class_id not in CLASSES:
@@ -464,11 +385,6 @@ def build_prompt(
     else:
         organism_field = "; ".join(subject_phrases)
 
-    # ----------------------------------------------------------------------
-    # Prompt hierarchy:
-    # habitat -> camera geometry -> habitat microstructure -> organisms ->
-    # ecology/composition -> water/light -> imaging.
-    # ----------------------------------------------------------------------
     opening = f"{SURVEY_IDENTITY}. {HABITAT_PRIORITY}. {SPATIAL_CONTINUITY}."
 
     habitat_block = (
@@ -502,7 +418,6 @@ def build_prompt(
         [opening, habitat_block, camera_block, organism_block, ecology_block, atmosphere_block, imaging_block]
     )
 
-    # Resolve the exact height in metres for metadata.
     camera_height_m = int(camera_height_key.rsplit("_", 1)[-1])
 
     metadata = PromptMetadata(
@@ -531,10 +446,6 @@ def build_prompt(
 
     return prompt, metadata
 
-
-# ============================================================================
-# CLASS NAME HELPERS
-# ============================================================================
 
 def class_names() -> dict[int, str]:
     return {cid: entry["short"] for cid, entry in CLASSES.items()}

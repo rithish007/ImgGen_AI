@@ -1,19 +1,4 @@
-"""
-Stage 1 generation - HunyuanImage-3.0 v7
-==========================================
-
-Generates the v7 habitat-first underwater survey dataset - identical to v6
-except it imports prompts_hunyuan_v7.py, which fixes a count=1 placement-text
-bug (see that file's module docstring). Camera-distance/habitat-first
-behaviour is unchanged from v6, which test6 (6 images) already confirmed
-genuinely fixes the "product photography" framing complaint.
-
-Duplicated from generate_hunyuan_v6.py rather than editing it in place (v6
-already produced real output via the test6 run).
-
-The model/API path is unchanged: startup introspection is retained, `seed`
-is passed directly, and generation uses stream=True.
-"""
+"""Generates the v7 habitat-first underwater survey dataset - identical to v6 except it imports prompts_hunyuan_v7.py, which fixes a count=1 placement-text bug (see that file's module docstring)."""
 
 from __future__ import annotations
 
@@ -31,7 +16,6 @@ PROMPT_VARIANT = "hunyuan_v7_habitat_first_survey_placement_fix"
 
 
 def run_startup_introspection(model) -> dict:
-    """Print the live generate_image() signature before generation."""
     sig = inspect.signature(model.generate_image)
     print(f"model.generate_image signature: {sig}")
     accepted = set(sig.parameters.keys())
@@ -49,15 +33,12 @@ def run_startup_introspection(model) -> dict:
 
 
 def _generate_one(model, prompt: str, seed: int):
-    """Generate one image using the confirmed Hunyuan API."""
     return model.generate_image(prompt=prompt, seed=seed, stream=True)
 
 
 def _build_for_row(row: dict) -> tuple[str, object]:
     counts = {int(k): v for k, v in row["requested_counts"].items()}
 
-    # Force the mandatory survey-distance regime. The prompt engine converts
-    # "far" into a deterministic 5/6/7/8 m selection based on the row seed.
     return build_prompt(
         counts,
         seed=row["seed"],
